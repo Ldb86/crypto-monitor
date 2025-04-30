@@ -94,4 +94,4 @@ async function checkMarket() {
 
 // Avvia analisi all'avvio + ogni 3 minuti
 checkMarket();
-setInterval(checkMarket, 3 * 60 * 1000);
+setInterval(checkMarket, 15 * 60 * 1000);
