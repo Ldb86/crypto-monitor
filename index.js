@@ -22,7 +22,7 @@ app.listen(PORT, () => {
 });
 
 // === Funzione invio Telegram ===
-const CHAT_IDS = [ELEGRAM_CHAT_ID]
+const CHAT_IDS = [TELEGRAM_CHAT_ID]
 async function sendTelegramMessage(message) {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
   try {
