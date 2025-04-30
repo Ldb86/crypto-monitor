@@ -22,12 +22,11 @@ app.listen(PORT, () => {
 });
 
 // === Funzione invio Telegram ===
-const CHAT_IDS = [TELEGRAM_CHAT_ID]
 async function sendTelegramMessage(message) {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
   try {
     await axios.post(url, {
-      chat_id: CHAT_IDS,
+      chat_id: TELEGRAM_CHAT_ID,
       text: message,
       parse_mode: "Markdown",
     });
@@ -69,29 +68,38 @@ async function checkMarket() {
 
       console.log(`💰 ${coin.toUpperCase()}: $${lastPrice.toFixed(2)}`);
 
+      const ema12 = EMA.calculate({ values: prices, period: 12 });
+      const ema26 = EMA.calculate({ values: prices, period: 26 });
       const ema50 = EMA.calculate({ values: prices, period: 50 }).at(-1);
       const ema200 = EMA.calculate({ values: prices, period: 200 }).at(-1);
       const rsi = RSI.calculate({ values: prices, period: 14 }).at(-1);
       const { macd } = calculateMACD(prices);
       const macdVal = macd.at(-1);
 
-      const message = `
-📈 *${coin.toUpperCase()}* - Aggiornamento Mercato:
-💰 Prezzo attuale: *$${lastPrice.toFixed(2)}*
+      // Calcolo incrocio EMA 12 / EMA 26
+      const prev12 = ema12.at(-2);
+      const prev26 = ema26.at(-2);
+      const curr12 = ema12.at(-1);
+      const curr26 = ema26.at(-1);
 
-📊 EMA 50: *$${ema50?.toFixed(2) || 'N/A'}*
-📊 EMA 200: *$${ema200?.toFixed(2) || 'N/A'}*
-📉 MACD: *${macdVal?.toFixed(4) || 'N/A'}*
-📈 RSI (14): *${rsi?.toFixed(2) || 'N/A'}*
-      `.trim();
+      let crossoverMessage = null;
 
-      await sendTelegramMessage(message);
+      if (prev12 < prev26 && curr12 > curr26) {
+        crossoverMessage = `🟢 *${coin.toUpperCase()}* - Incrocio *rialzista* (EMA 12 > EMA 26)\nPrezzo: *$${lastPrice.toFixed(2)}*`;
+      } else if (prev12 > prev26 && curr12 < curr26) {
+        crossoverMessage = `🔴 *${coin.toUpperCase()}* - Incrocio *ribassista* (EMA 12 < EMA 26)\nPrezzo: *$${lastPrice.toFixed(2)}*`;
+      }
+
+      if (crossoverMessage) {
+        await sendTelegramMessage(crossoverMessage);
+      }
+
     } catch (err) {
       console.error(`❌ Errore su ${coin}:`, err.message);
     }
   }
 }
 
-// Avvia analisi all'avvio + ogni 3 minuti
+// Avvia analisi all'avvio + ogni 15 minuti
 checkMarket();
 setInterval(checkMarket, 15 * 60 * 1000);
