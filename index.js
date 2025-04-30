@@ -8,6 +8,12 @@ const TELEGRAM_CHAT_ID = process.env.CHAT_ID;
 const coins = ['bitcoin', 'ethereum', 'solana'];
 const vs_currency = 'usd';
 
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server avviato sulla porta ${PORT}`);
+});
+
+
 // === Utility Telegram ===
 async function sendTelegramMessage(message) {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
