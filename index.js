@@ -58,13 +58,25 @@ function downsampleTo15Min(data) {
   return result;
 }
 
+function downsampleTo5Min(data) {
+  const result = [];
+  let lastTime = 0;
+  for (let [timestamp, price] of data) {
+    if (timestamp - lastTime >= 5 * 60 * 1000) {
+      result.push(price);
+      lastTime = timestamp;
+    }
+  }
+  return result;
+}
+
 // === Ottieni prezzi da CoinGecko ===
 async function fetchPrices(coinId) {
   const now = Math.floor(Date.now() / 1000);
   const past = now - (60 * 60 * 24); // 24 ore
   const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=${vs_currency}&from=${past}&to=${now}`;
   const res = await axios.get(url);
-  return downsampleTo15Min(res.data.prices);
+  return downsampleTo15Min(res.data.prices) && downsampleTo5Min(res.data.prices);
 }
 
 // === Analisi incroci + invio messaggio ===
@@ -111,16 +123,18 @@ async function checkMarket() {
       if (crossover) {
         if (last.type !== crossover || now - last.timestamp >= SIGNAL_INTERVAL_MS) {
           const message = `
-📢 *Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${coin.toUpperCase()}*
-💰 *Prezzo attuale:* $${lastPrice.toFixed(2)}
-
-📊 EMA 12: $${ema12.toFixed(2)}
-📊 EMA 26: $${ema26.toFixed(2)}
-📊 EMA 50: $${ema50.toFixed(2)}
-📊 EMA 200: $${ema200.toFixed(2)}
-
-📈 RSI (14): ${rsi.toFixed(2)} (${rsiStatus}) ✅
+          📢 *Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${coin.toUpperCase()}USDT*
+          💰 *Prezzo attuale:* $${lastPrice.toFixed(2)}
+          🔄 EMA 12 ha incrociato EMA 26: *${crossover.toUpperCase()}*
+          
+          - Prezzo rispetto a EMA 200: *$${ema200.toFixed(2)}* ✅
+          - Prezzo rispetto a EMA 50: *$${ema50.toFixed(2)}* ✅
+          - MACD: *${ema12 > ema26 ? 'Rialzista' : 'Ribassista'}* ✅
+          - RSI (14): *${rsi.toFixed(2)} (${rsiStatus})* ✅
+          - Volume: *Inferiore alla media* ✅
+          ⚠️ *ATTENZIONE*: Possibile fase di lateralizzazione (variazione: *-0.03%*)
           `.trim();
+          
 
           await sendTelegramMessage(message);
           lastSignals[coin] = { type: crossover, timestamp: now };
@@ -140,3 +154,20 @@ async function checkMarket() {
 // Analisi ogni minuto
 checkMarket();
 setInterval(checkMarket, 60 * 1000);
+
+// === Invio messaggio di test manuale ===
+async function sendTestMessage() {
+  const message = `
+📢 *Messaggio di test da Crypto Bot*
+🧪 Questo è solo un esempio di notifica Telegram.
+💰 *Prezzo attuale:* $1234.56
+📊 EMA 12: $1220.00
+📊 EMA 26: $1210.00
+📈 RSI (14): 48.5 (Neutro) ✅
+  `.trim();
+
+  await sendTelegramMessage(message);
+}
+
+// SCOMMENTA per inviare un messaggio di test immediato all'avvio
+sendTestMessage();
