@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const { EMA } = require('technicalindicators');
+const { EMA, RSI, SMA } = require('technicalindicators');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +67,17 @@ async function fetchPrices(coinId) {
   return downsampleTo15Min(res.data.prices);
 }
 
+// === Calcolo MACD ===
+function calculateMACD(prices, shortPeriod = 12, longPeriod = 26) {
+  const shortMA = SMA.calculate({ values: prices, period: shortPeriod });
+  const longMA = SMA.calculate({ values: prices, period: longPeriod });
+
+  const lengthDiff = longMA.length - shortMA.length;
+  const macd = shortMA.map((val, i) => val - longMA[i + lengthDiff]);
+
+  return { macd };
+}
+
 // === Analisi incroci EMA 12/26 ===
 async function checkMarket() {
   console.clear();
@@ -118,4 +129,4 @@ async function checkMarket() {
 
 // Avvia analisi all'avvio + ogni 15 minuti
 checkMarket();
-setInterval(checkMarket, 15 * 60 * 1000);
+setInterval(checkMarket, 1 * 60 * 1000);
