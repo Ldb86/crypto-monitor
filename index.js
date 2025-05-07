@@ -9,14 +9,32 @@ const PORT = process.env.PORT || 3000;
 const TELEGRAM_TOKEN = process.env.BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.CHAT_ID;
 
-const coins = ['bitcoin', 'ethereum', 'solana'];
+const coins = [
+  'bitcoin', 
+  'ethereum', 
+  'solana', 
+  'aaveusdt', 
+  'suiusdt',
+  'bnbusdt',
+  'uniusdt',
+  'xrpusdt',
+  'ltcusdt',
+  'enausdt'
+];
 const vs_currency = 'usd';
 
 // Tracking ultimi segnali per evitare ripetizioni
 const lastSignals = {
   bitcoin: { type: null, timestamp: 0 },
   ethereum: { type: null, timestamp: 0 },
-  solana: { type: null, timestamp: 0 }
+  solana: { type: null, timestamp: 0 },
+  aaveusdt: { type: null, timestamp: 0 },
+  suiusdt: { type: null, timestamp: 0 },
+  bnbusdt: { type: null, timestamp: 0 },
+  uniusdt: { type: null, timestamp: 0 },
+  xrpusdt: { type: null, timestamp: 0 },  
+  ltcusdt: { type: null, timestamp: 0 },
+  enausdt: { type: null, timestamp: 0 }
 };
 
 const SIGNAL_INTERVAL_MS = 15 * 60 * 1000;
@@ -156,18 +174,18 @@ checkMarket();
 setInterval(checkMarket, 60 * 1000);
 
 // === Invio messaggio di test manuale ===
-async function sendTestMessage() {
-  const message = `
-📢 *Messaggio di test da Crypto Bot*
-🧪 Questo è solo un esempio di notifica Telegram.
-💰 *Prezzo attuale:* $1234.56
-📊 EMA 12: $1220.00
-📊 EMA 26: $1210.00
-📈 RSI (14): 48.5 (Neutro) ✅
-  `.trim();
+// async function sendTestMessage() {
+//   const message = `
+// 📢 *Messaggio di test da Crypto Bot*
+// 🧪 Questo è solo un esempio di notifica Telegram.
+// 💰 *Prezzo attuale:* $1234.56
+// 📊 EMA 12: $1220.00
+// 📊 EMA 26: $1210.00
+// 📈 RSI (14): 48.5 (Neutro) ✅
+//   `.trim();
 
-  await sendTelegramMessage(message);
-}
+//   await sendTelegramMessage(message);
+// }
 
 // SCOMMENTA per inviare un messaggio di test immediato all'avvio
-sendTestMessage();
+// sendTestMessage();
