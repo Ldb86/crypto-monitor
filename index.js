@@ -1,18 +1,25 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const { EMA, RSI, SMA } = require('technicalindicators');
+const { EMA, RSI } = require('technicalindicators');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const TELEGRAM_TOKEN_1 = process.env.BOT_TOKEN;
-const TELEGRAM_CHAT_ID_1 = process.env.CHAT_ID;
-const TELEGRAM_TOKEN_2 = process.env.BOT_TOKEN_2;
-const TELEGRAM_CHAT_ID_2 = process.env.CHAT_ID_2;
+const TELEGRAM_TOKEN = process.env.BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.CHAT_ID;
 
 const coins = ['bitcoin', 'ethereum', 'solana'];
 const vs_currency = 'usd';
+
+// Tracking ultimi segnali per evitare ripetizioni
+const lastSignals = {
+  bitcoin: { type: null, timestamp: 0 },
+  ethereum: { type: null, timestamp: 0 },
+  solana: { type: null, timestamp: 0 }
+};
+
+const SIGNAL_INTERVAL_MS = 15 * 60 * 1000;
 
 // === ROUTE BASE ===
 app.get('/', (req, res) => {
@@ -23,25 +30,18 @@ app.listen(PORT, () => {
   console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
 });
 
-// === Funzione invio Telegram a due bot ===
+// === Funzione invio Telegram ===
 async function sendTelegramMessage(message) {
-  const bots = [
-    { token: TELEGRAM_TOKEN_1, chat_id: TELEGRAM_CHAT_ID_1 },
-    { token: TELEGRAM_TOKEN_2, chat_id: TELEGRAM_CHAT_ID_2 },
-  ];
-
-  for (const bot of bots) {
-    const url = `https://api.telegram.org/bot${bot.token}/sendMessage`;
-    try {
-      await axios.post(url, {
-        chat_id: bot.chat_id,
-        text: message,
-        parse_mode: "Markdown",
-      });
-      console.log(`📬 Messaggio inviato con bot ${bot.token.slice(0, 10)}...`);
-    } catch (err) {
-      console.error(`❌ Errore invio con bot ${bot.token.slice(0, 10)}...:`, err.message);
-    }
+  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+  try {
+    await axios.post(url, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: "Markdown",
+    });
+    console.log(`📬 Messaggio Telegram inviato:\n${message}\n`);
+  } catch (err) {
+    console.error('Errore Telegram:', err.message);
   }
 }
 
@@ -67,18 +67,7 @@ async function fetchPrices(coinId) {
   return downsampleTo15Min(res.data.prices);
 }
 
-// === Calcolo MACD ===
-function calculateMACD(prices, shortPeriod = 12, longPeriod = 26) {
-  const shortMA = SMA.calculate({ values: prices, period: shortPeriod });
-  const longMA = SMA.calculate({ values: prices, period: longPeriod });
-
-  const lengthDiff = longMA.length - shortMA.length;
-  const macd = shortMA.map((val, i) => val - longMA[i + lengthDiff]);
-
-  return { macd };
-}
-
-// === Analisi incroci EMA 12/26 ===
+// === Analisi incroci + invio messaggio ===
 async function checkMarket() {
   console.clear();
   console.log(`🕒 ${new Date().toLocaleTimeString()}`);
@@ -90,14 +79,22 @@ async function checkMarket() {
 
       const ema12Arr = EMA.calculate({ values: prices, period: 12 });
       const ema26Arr = EMA.calculate({ values: prices, period: 26 });
+      const ema50Arr = EMA.calculate({ values: prices, period: 50 });
+      const ema200Arr = EMA.calculate({ values: prices, period: 200 });
+      const rsiArr = RSI.calculate({ values: prices, period: 14 });
 
-      if (ema12Arr.length < 2 || ema26Arr.length < 2) {
+      if ([ema12Arr, ema26Arr, ema50Arr, ema200Arr, rsiArr].some(arr => arr.length < 2)) {
         console.warn(`Dati insufficienti per ${coin}`);
         continue;
       }
 
       const ema12 = ema12Arr.at(-1);
       const ema26 = ema26Arr.at(-1);
+      const ema50 = ema50Arr.at(-1);
+      const ema200 = ema200Arr.at(-1);
+      const rsi = rsiArr.at(-1);
+      const rsiStatus = rsi > 70 ? 'Ipercomprato' : rsi < 30 ? 'Ipervenduto' : 'Neutro';
+
       const prevEma12 = ema12Arr.at(-2);
       const prevEma26 = ema26Arr.at(-2);
 
@@ -108,25 +105,38 @@ async function checkMarket() {
         crossover = 'bearish';
       }
 
+      const now = Date.now();
+      const last = lastSignals[coin];
+
       if (crossover) {
-        const message = `
-📈 *${coin.toUpperCase()}* - Segnale *${crossover === 'bullish' ? 'Bullish 🟢' : 'Bearish 🔴'}*
-💰 Prezzo attuale: *$${lastPrice.toFixed(2)}*
+        if (last.type !== crossover || now - last.timestamp >= SIGNAL_INTERVAL_MS) {
+          const message = `
+📢 *Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${coin.toUpperCase()}*
+💰 *Prezzo attuale:* $${lastPrice.toFixed(2)}
+
 📊 EMA 12: $${ema12.toFixed(2)}
 📊 EMA 26: $${ema26.toFixed(2)}
-        `.trim();
+📊 EMA 50: $${ema50.toFixed(2)}
+📊 EMA 200: $${ema200.toFixed(2)}
 
-        await sendTelegramMessage(message);
+📈 RSI (14): ${rsi.toFixed(2)} (${rsiStatus}) ✅
+          `.trim();
+
+          await sendTelegramMessage(message);
+          lastSignals[coin] = { type: crossover, timestamp: now };
+        } else {
+          console.log(`⏳ ${coin}: incrocio ${crossover}, segnale già inviato.`);
+        }
       } else {
-        console.log(`📉 Nessun incrocio su ${coin.toUpperCase()}`);
+        lastSignals[coin] = { type: null, timestamp: 0 };
+        console.log(`📉 Nessun incrocio EMA per ${coin.toUpperCase()}`);
       }
-
     } catch (err) {
       console.error(`❌ Errore su ${coin}:`, err.message);
     }
   }
 }
 
-// Avvia analisi all'avvio + ogni 15 minuti
+// Analisi ogni minuto
 checkMarket();
-setInterval(checkMarket, 1 * 60 * 1000);
+setInterval(checkMarket, 60 * 1000);
