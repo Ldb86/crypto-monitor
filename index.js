@@ -6,8 +6,10 @@ const { EMA } = require('technicalindicators');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const TELEGRAM_TOKEN = process.env.BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.CHAT_ID;
+const TELEGRAM_TOKEN_1 = process.env.BOT_TOKEN;
+const TELEGRAM_CHAT_ID_1 = process.env.CHAT_ID;
+const TELEGRAM_TOKEN_2 = process.env.BOT_TOKEN_2;
+const TELEGRAM_CHAT_ID_2 = process.env.CHAT_ID_2;
 
 const coins = ['bitcoin', 'ethereum', 'solana'];
 const vs_currency = 'usd';
@@ -21,18 +23,25 @@ app.listen(PORT, () => {
   console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
 });
 
-// === Funzione invio Telegram ===
+// === Funzione invio Telegram a due bot ===
 async function sendTelegramMessage(message) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-  try {
-    await axios.post(url, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "Markdown",
-    });
-    console.log(`📬 Messaggio Telegram inviato:\n${message}\n`);
-  } catch (err) {
-    console.error('Errore Telegram:', err.message);
+  const bots = [
+    { token: TELEGRAM_TOKEN_1, chat_id: TELEGRAM_CHAT_ID_1 },
+    { token: TELEGRAM_TOKEN_2, chat_id: TELEGRAM_CHAT_ID_2 },
+  ];
+
+  for (const bot of bots) {
+    const url = `https://api.telegram.org/bot${bot.token}/sendMessage`;
+    try {
+      await axios.post(url, {
+        chat_id: bot.chat_id,
+        text: message,
+        parse_mode: "Markdown",
+      });
+      console.log(`📬 Messaggio inviato con bot ${bot.token.slice(0, 10)}...`);
+    } catch (err) {
+      console.error(`❌ Errore invio con bot ${bot.token.slice(0, 10)}...:`, err.message);
+    }
   }
 }
 
