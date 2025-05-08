@@ -5,8 +5,8 @@ const { EMA } = require('technicalindicators');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const TELEGRAM_TOKEN = process.env.BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.CHAT_ID;
+const TELEGRAM_TOKEN = process.env.BOT_TOKENS.split(',');  // due token
+const TELEGRAM_CHAT_ID = process.env.CHAT_IDS.split(','); // due chat_id
 
 const coins = [
   'BTCUSDT', 'ETHUSDT', 'SOLUSDT',
@@ -34,16 +34,24 @@ app.listen(PORT, () => {
 });
 
 async function sendTelegramMessage(message) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-  try {
-    await axios.post(url, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "Markdown",
-    });
-    console.log(`📬 Telegram: ${message.split('\n')[0]}`);
-  } catch (err) {
-    console.error('Telegram error:', err.message);
+  // Itera su entrambi i bot
+  for (let i = 0; i < TELEGRAM_TOKEN.length; i++) {
+    const token = TELEGRAM_TOKEN[i].trim();
+    const chatId = TELEGRAM_CHAT_ID[i] ? TELEGRAM_CHAT_ID[i].trim() : null;
+
+    if (!chatId) continue; // Se non c'è un chat_id per il bot corrente, salta
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    try {
+      await axios.post(url, {
+        chat_id: chatId,
+        text: message,
+        parse_mode: "Markdown",
+      });
+      console.log(`📬 Telegram: ${message.split('\n')[0]} ➡️ Bot ${i + 1}`);
+    } catch (err) {
+      console.error(`Telegram error with bot ${i + 1}:`, err.message);
+    }
   }
 }
 
