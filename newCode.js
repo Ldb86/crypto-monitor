@@ -50,7 +50,7 @@ async function sendTelegramMessage(message) {
 async function fetchKlines(symbol, interval, limit = 200) {
   const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   const res = await axios.get(url);
-  return res.data.map(k => parseFloat(k[4])); // prezzi di chiusura
+  return res.data.map(k => parseFloat(k[4])); // chiusura
 }
 
 async function analyzeEMA(symbol, interval) {
@@ -76,13 +76,12 @@ async function analyzeEMA(symbol, interval) {
 
     const now = Date.now();
     const lastSignal = lastSignals[symbol][interval];
-
-    const emaDiff = Math.abs(lastEma12 - lastEma26);
-    const avgEma = (lastEma12 + lastEma26) / 2;
-    const proximityPercent = (emaDiff / avgEma) * 100;
+    const isSolana = symbol === 'SOLUSDT';
+    const isNewSignal = lastSignal.type !== crossover;
+    const isTimeOk = isSolana || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS;
 
     // ✅ Segnale confermato (crossover)
-    if (crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
+    if (crossover && isNewSignal && isTimeOk) {
       const msg = `
 📢 *Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}* [*${interval}*]
 💰 Prezzo: *$${lastPrice.toFixed(2)}*
@@ -95,18 +94,19 @@ async function analyzeEMA(symbol, interval) {
     }
 
     // 🔍 Pre-crossover (EMA molto vicine)
-    else if (!crossover && proximityPercent <= 0.1 && now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS) {
-      const msg = `
-👀 *Segnale in avvicinamento per ${symbol}* [*${interval}*]
-💰 Prezzo: *$${lastPrice.toFixed(2)}*
-📊 EMA12: *$${lastEma12.toFixed(2)}* | EMA26: *$${lastEma26.toFixed(2)}*
-📉 Differenza: *${proximityPercent.toFixed(4)}%*
-⚠️ Le medie sono molto vicine, possibile incrocio a breve.
-      `.trim();
+//     else if (!crossover && Math.abs(lastEma12 - lastEma26) / ((lastEma12 + lastEma26) / 2) <= 0.001 &&
+//              now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS) {
+//       const msg = `
+// 👀 *Segnale in avvicinamento per ${symbol}* [*${interval}*]
+// 💰 Prezzo: *$${lastPrice.toFixed(2)}*
+// 📊 EMA12: *$${lastEma12.toFixed(2)}* | EMA26: *$${lastEma26.toFixed(2)}*
+// 📉 Differenza: *${(Math.abs(lastEma12 - lastEma26) / ((lastEma12 + lastEma26) / 2) * 100).toFixed(4)}%*
+// ⚠️ Le medie sono molto vicine, possibile incrocio a breve.
+//       `.trim();
 
-      await sendTelegramMessage(msg);
-      lastSignals[symbol][interval].timestamp = now;
-    }
+//       await sendTelegramMessage(msg);
+//       lastSignals[symbol][interval].timestamp = now;
+//     }
 
     // ⏱️ Notifica ogni minuto per SOLUSDT
     else if (symbol === 'SOLUSDT' && now - lastSignal.timestamp >= 60 * 1000) {
@@ -133,7 +133,7 @@ async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
       await analyzeEMA(coin, interval);
-      await new Promise(r => setTimeout(r, 250)); // 0.25s delay per evitare ban
+      await new Promise(r => setTimeout(r, 250)); // 0.25s delay
     }
   }
 }
