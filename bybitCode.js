@@ -57,23 +57,8 @@ async function sendTelegramMessage(message) {
 async function fetchKlines(symbol, interval, limit = 200) {
   const intervalMap = { '1m': '1', '5m': '5', '15': '15' };
 
-  // Tentativo con Binance
   try {
-    const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    const res = await axios.get(binanceUrl);
-    return res.data.map(k => ({
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-      time: k[0]
-    }));
-  } catch (binanceErr) {
-    console.warn(`⚠️ Binance fallito per ${symbol} [${interval}]: ${binanceErr.response?.status || binanceErr.message}`);
-  }
-
-  // Fallback su Bybit
-  try {
-    const bybitUrl = `https://api.bybit.com/v5/market/kline`;
-    const res = await axios.get(bybitUrl, {
+    const res = await axios.get('https://api.bybit.com/v5/market/kline', {
       params: {
         category: 'spot',
         symbol,
@@ -84,7 +69,7 @@ async function fetchKlines(symbol, interval, limit = 200) {
 
     const data = res.data?.result?.list;
     if (!data || data.length === 0) {
-      throw new Error('Nessun dato da Bybit.');
+      throw new Error('Nessun dato restituito da Bybit.');
     }
 
     return data.reverse().map(k => ({
@@ -92,11 +77,12 @@ async function fetchKlines(symbol, interval, limit = 200) {
       volume: parseFloat(k[5]),
       time: Number(k[0])
     }));
-  } catch (bybitErr) {
-    console.error(`❌ Fallback Bybit fallito per ${symbol} [${interval}]:`, bybitErr.message);
+  } catch (error) {
+    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${interval}]:`, error.message);
     return [];
   }
 }
+
 
 async function analyzeEMA(symbol, interval) {
   try {
