@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['1m', '5m', '15'];
+const intervals = ['1m'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -117,7 +117,9 @@ async function analyzeEMA(symbol, interval) {
     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
-      if (crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
+    const isSolana = symbol === 'SOLUSDT'; //<-- da elinimare
+
+    if (isSolana || crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}

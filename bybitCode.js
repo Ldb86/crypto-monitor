@@ -138,10 +138,17 @@ async function analyzeEMA(symbol, interval) {
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
     const shouldNotify = (interval === '5m' || interval === '15');
-    const isSolana = symbol === 'SOLUSDT'; //<-- da elinimare
-    if (isSolana || shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
+
+    // *** Rimuovi questa parte ***
+    // const isSolana = symbol === 'SOLUSDT'; //<-- da elinimare
+
+    // *** Aggiungi questa nuova logica ***
+    const isTest = symbol === 'SOLUSDT' && interval === '1m'; // **TEST per Solana con intervallo 1m**
+    const hasValidSignal = crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS);
+
+    if ((shouldNotify && hasValidSignal) || isTest) {
       const msg = `
-📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
+📉 ${isTest ? '[TEST 🔧] ' : ''}Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
 
@@ -164,6 +171,7 @@ async function analyzeEMA(symbol, interval) {
     console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
   }
 }
+
 
 async function checkMarket() {
   for (const coin of coins) {
