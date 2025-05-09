@@ -26,7 +26,7 @@ coins.forEach(coin => {
 });
 
 app.get('/', (req, res) => {
-  res.send('✅ Bybit EMA Alert Bot attivo');
+  res.send('✅ EMA Alert Bot attivo');
 });
 
 app.listen(PORT, () => {
@@ -55,16 +55,25 @@ async function sendTelegramMessage(message) {
 }
 
 async function fetchKlines(symbol, interval, limit = 200) {
-  const intervalMap = {
-    '1m': '1',
-    '5m': '5',
-    '15': '15'
-  };
+  const intervalMap = { '1m': '1', '5m': '5', '15': '15' };
 
-  const url = `https://api.bybit.com/v5/market/kline`;
-
+  // Tentativo con Binance
   try {
-    const res = await axios.get(url, {
+    const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    const res = await axios.get(binanceUrl);
+    return res.data.map(k => ({
+      close: parseFloat(k[4]),
+      volume: parseFloat(k[5]),
+      time: k[0]
+    }));
+  } catch (binanceErr) {
+    console.warn(`⚠️ Binance fallito per ${symbol} [${interval}]: ${binanceErr.response?.status || binanceErr.message}`);
+  }
+
+  // Fallback su Bybit
+  try {
+    const bybitUrl = `https://api.bybit.com/v5/market/kline`;
+    const res = await axios.get(bybitUrl, {
       params: {
         category: 'spot',
         symbol,
@@ -75,16 +84,16 @@ async function fetchKlines(symbol, interval, limit = 200) {
 
     const data = res.data?.result?.list;
     if (!data || data.length === 0) {
-      throw new Error('Nessun dato restituito da Bybit.');
+      throw new Error('Nessun dato da Bybit.');
     }
 
-    return data.map(k => ({
+    return data.reverse().map(k => ({
       close: parseFloat(k[4]),
       volume: parseFloat(k[5]),
       time: Number(k[0])
-    })).reverse(); // Ordina dal più vecchio al più recente
-  } catch (error) {
-    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${interval}]:`, error.message);
+    }));
+  } catch (bybitErr) {
+    console.error(`❌ Fallback Bybit fallito per ${symbol} [${interval}]:`, bybitErr.message);
     return [];
   }
 }
@@ -143,8 +152,8 @@ async function analyzeEMA(symbol, interval) {
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
     const shouldNotify = (interval === '5m' || interval === '15');
-
-    if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
+    const isSolana = symbol === 'SOLUSDT'; //<-- da elinimare
+    if (isSolana || shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
@@ -169,7 +178,6 @@ async function analyzeEMA(symbol, interval) {
     console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
   }
 }
-
 
 async function checkMarket() {
   for (const coin of coins) {
