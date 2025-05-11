@@ -83,6 +83,12 @@ async function fetchKlines(symbol, interval, limit = 200) {
   }
 }
 
+function getSupportResistance(prices, lookback = 20) {
+  const recent = prices.slice(-lookback);
+  const support = Math.min(...recent);
+  const resistance = Math.max(...recent);
+  return { support, resistance };
+}
 
 async function analyzeEMA(symbol, interval) {
   try {
@@ -121,8 +127,9 @@ async function analyzeEMA(symbol, interval) {
 
     const volNow = volumes.at(-1);
     const avgVol = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-
     const variation3min = ((prices.at(-1) - prices.at(-4)) / prices.at(-4)) * 100;
+
+    const { support, resistance } = getSupportResistance(prices, 20);
 
     let crossover = null;
     const prevEma12 = ema12.at(-2);
@@ -138,17 +145,9 @@ async function analyzeEMA(symbol, interval) {
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
     const shouldNotify = (interval === '5m' || interval === '15');
-
-    // *** Rimuovi questa parte ***
-    // const isSolana = symbol === 'SOLUSDT'; //<-- da elinimare
-
-    // *** Aggiungi questa nuova logica ***
-    const isTest = symbol === 'SOLUSDT' && interval === '1m'; // **TEST per Solana con intervallo 1m**
-    const hasValidSignal = crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS);
-
-    if ((shouldNotify && hasValidSignal) || isTest) {
+    if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
-📉 ${isTest ? '[TEST 🔧] ' : ''}Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
+📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
 
@@ -160,6 +159,8 @@ async function analyzeEMA(symbol, interval) {
 - RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
 - Volume: ${volumeSignal}
 - ⚠ Variazione 3min: ${variation3min.toFixed(2)}%
+- 📉 Supporto: $${support.toFixed(2)}
+- 📈 Resistenza: $${resistance.toFixed(2)}
       `.trim();
 
       await sendTelegramMessage(msg);
