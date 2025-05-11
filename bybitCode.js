@@ -160,7 +160,7 @@ async function analyzeEMA(symbol, interval) {
     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
-    const shouldNotify = ['5m', '15m', '30m', '1h', '2h', '4h'].includes(interval);
+    const shouldNotify = intervals.includes(interval);
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
