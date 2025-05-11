@@ -100,7 +100,7 @@ function getSupportResistance(prices, lookback = 20) {
 
 async function analyzeEMA(symbol, interval) {
   try {
-    const klines = await fetchKlines(symbol, interval);
+    const klines = await fetchKlines(symbol, interval, 300);
     const prices = klines.map(k => k.close);
     const volumes = klines.map(k => k.volume);
 
