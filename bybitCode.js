@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['5m', '15', '30', '1h', '2h', '4h'];
+const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -57,8 +57,8 @@ async function sendTelegramMessage(message) {
 async function fetchKlines(symbol, interval, limit = 200) {
   const intervalMap = {
   '5m': '5',
-  '15': '15',
-  '30': '30',
+  '15m': '15',
+  '30m': '30',
   '1h': '60',
   '2h': '120',
   '4h': '240'
@@ -185,7 +185,6 @@ async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
       await analyzeEMA(coin, interval);
-      await new Promise(r => setTimeout(r, 250));
     }
   }
 }
