@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['1m', '5m', '15'];
+const intervals = ['5m', '15', '30', '1h', '2h', '4h'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -55,7 +55,15 @@ async function sendTelegramMessage(message) {
 }
 
 async function fetchKlines(symbol, interval, limit = 200) {
-  const intervalMap = { '1m': '1', '5m': '5', '15': '15' };
+  const intervalMap = {
+  '5m': '5',
+  '15': '15',
+  '30': '30',
+  '1h': '60',
+  '2h': '120',
+  '4h': '240'
+};
+
 
   try {
     const res = await axios.get('https://api.bybit.com/v5/market/kline', {
@@ -144,7 +152,7 @@ async function analyzeEMA(symbol, interval) {
     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
-    const shouldNotify = (interval === '5m' || interval === '15');
+    const shouldNotify = ['5m', '15', '30', '1h', '2h', '4h'].includes(interval);
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
