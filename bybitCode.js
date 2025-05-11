@@ -72,8 +72,6 @@ async function fetchKlines(symbol, interval, limit = 200) {
     return [];
   }
 
-  console.log(`⌛ Fetching ${symbol} [${interval}] (mapped: ${mappedInterval})`);
-
   try {
     const res = await axios.get('https://api.bybit.com/v5/market/kline', {
       params: {
