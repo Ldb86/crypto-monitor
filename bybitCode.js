@@ -55,22 +55,21 @@ async function sendTelegramMessage(message) {
 }
 
 async function fetchKlines(symbol, interval, limit = 200) {
-  const intervalMap = {
-  '5m': '5',
-  '15m': '15',
-  '30m': '30',
-  '1h': '60',
-  '2h': '120',
-  '4h': '240'
-};
+  const mappedInterval = intervalMap[interval];
 
+  if (!mappedInterval) {
+    console.error(`⚠️ Interval "${interval}" non valido o non mappato in intervalMap.`);
+    return [];
+  }
+
+  console.log(`⌛ Fetching ${symbol} [${interval}] (mapped: ${mappedInterval})`);
 
   try {
     const res = await axios.get('https://api.bybit.com/v5/market/kline', {
       params: {
         category: 'spot',
         symbol,
-        interval: intervalMap[interval],
+        interval: mappedInterval,
         limit
       }
     });
@@ -90,6 +89,7 @@ async function fetchKlines(symbol, interval, limit = 200) {
     return [];
   }
 }
+
 
 function getSupportResistance(prices, lookback = 20) {
   const recent = prices.slice(-lookback);
@@ -184,9 +184,16 @@ async function analyzeEMA(symbol, interval) {
 async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
-      await analyzeEMA(coin, interval);
+      console.log(`🔍 Analisi: ${coin} [${interval}]`);
+      try {
+        await analyzeEMA(coin, interval);
+      } catch (err) {
+        console.error(`❌ Errore durante l'analisi EMA per ${coin} [${interval}]:`, err.message);
+      }
+      await new Promise(r => setTimeout(r, 250)); // breve pausa per evitare rate limit
     }
   }
 }
+
 
 setInterval(checkMarket, 60 * 1000);
