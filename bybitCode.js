@@ -147,7 +147,7 @@ async function analyzeEMA(symbol, interval) {
     const shouldNotify = (interval === '5m' || interval === '15');
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
-📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
+📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
 
