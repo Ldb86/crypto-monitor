@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
+const intervals = ['5m', '15m', '30m'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -29,9 +29,9 @@ const intervalMap = {
   '5m': '5',
   '15m': '15',
   '30m': '30',
-  '1h': '60',
-  '2h': '120',
-  '4h': '240'
+  // '1h': '60',
+  // '2h': '120',
+  // '4h': '240'
 };
 
 
