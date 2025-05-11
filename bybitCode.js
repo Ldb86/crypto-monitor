@@ -127,7 +127,7 @@ async function analyzeEMA(symbol, interval) {
 
     const volNow = volumes.at(-1);
     const avgVol = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-    const variation3min = ((prices.at(-1) - prices.at(-4)) / prices.at(-4)) * 100;
+    //const variation3min = ((prices.at(-1) - prices.at(-4)) / prices.at(-4)) * 100;
 
     const { support, resistance } = getSupportResistance(prices, 20);
 
@@ -158,15 +158,16 @@ async function analyzeEMA(symbol, interval) {
 - MACD: ${macdSignal}
 - RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
 - Volume: ${volumeSignal}
-- ⚠ Variazione 3min: ${variation3min.toFixed(2)}%
+//- ⚠ Variazione 3min: ${variation3min.toFixed(2)}%
 - 📉 Supporto: $${support.toFixed(2)}
 - 📈 Resistenza: $${resistance.toFixed(2)}
+⚠️ Le medie sono molto vicine, possibile incrocio a breve.
       `.trim();
 
       await sendTelegramMessage(msg);
-      lastSignals[symbol][interval] = { type: crossover, timestamp: now };
-    } else {
-      console.log(`📉 ${symbol} [${interval}]: Analizzato. Notifica: ${shouldNotify ? 'NO CROSSOVER' : 'DISABILITATA PER 1M'}`);
+      lastSignals[symbol][interval].timestamp = now; // per evitare spam
+    }    else {
+      console.log(`📉 ${symbol} [${interval}]: nessun incrocio EMA.`);
     }
   } catch (err) {
     console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
