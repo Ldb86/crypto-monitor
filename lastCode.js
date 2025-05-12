@@ -5,15 +5,6 @@ const { EMA, RSI, MACD } = require('technicalindicators');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const intervalMap = {
-  '5m': '5',
-  '15m': '15',
-  '30m': '30',
-  '1h': '60',
-  '2h': '120',
-  '4h': '240'
-};
 const TELEGRAM_TOKEN = process.env.BOT_TOKENS.split(',');
 const TELEGRAM_CHAT_ID = process.env.CHAT_IDS.split(',');
 
@@ -22,9 +13,7 @@ const coins = [
   'BNBUSDT', 'UNIUSDT', 'XRPUSDT',
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
-
 const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
-
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -35,8 +24,17 @@ coins.forEach(coin => {
   });
 });
 
+const intervalMap = {
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1h': '60',
+  '2h': '120',
+  '4h': '240'
+};
+
 app.get('/', (req, res) => {
-  res.send('✅ Binance EMA Alert Bot attivo');
+  res.send('✅ EMA Alert Bot attivo');
 });
 
 app.listen(PORT, () => {
@@ -63,8 +61,6 @@ async function sendTelegramMessage(message) {
     }
   }
 }
-
-
 
 async function fetchKlines(symbol, interval, limit = 200) {
   const mappedInterval = intervalMap[interval];
@@ -95,15 +91,15 @@ async function fetchKlines(symbol, interval, limit = 200) {
       time: Number(k[0])
     }));
   } catch (error) {
-    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${intervals}]:`, error.message);
+    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${interval}]:`, error.message);
     return [];
   }
 }
 
 function getSupportResistance(prices, lookback = 20) {
-  const recentPrices = prices.slice(-lookback);
-  const support = Math.min(...recentPrices);
-  const resistance = Math.max(...recentPrices);
+  const recent = prices.slice(-lookback);
+  const support = Math.min(...recent);
+  const resistance = Math.max(...recent);
   return { support, resistance };
 }
 
@@ -163,8 +159,6 @@ async function analyzeEMA(symbol, interval) {
 
     const shouldNotify = intervals.includes(interval);
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
-      console.log("🚨 Test: crossover rilevato per", symbol, `[${interval}]`);
-
       const msg = `
 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
@@ -194,12 +188,16 @@ async function analyzeEMA(symbol, interval) {
 async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
-      await analyzeEMA(coin, interval);
-      await new Promise(r => setTimeout(r, 1000));
+      console.log(`🔍 Analisi: ${coin} [${interval}]`);
+      try {
+        await analyzeEMA(coin, interval);
+      } catch (err) {
+        console.error(`❌ Errore durante l'analisi EMA per ${coin} [${interval}]:`, err.message);
+      }
+      await new Promise(r => setTimeout(r, 250)); // breve pausa per evitare rate limit
     }
   }
 }
-sendTelegramMessage("🧪 Test messaggio dal bot EMA.").catch(console.error);
 
 
 setInterval(checkMarket, 60 * 1000);
