@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['5m', '15m', '30m'];
+const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -29,9 +29,9 @@ const intervalMap = {
   '5m': '5',
   '15m': '15',
   '30m': '30',
-  // '1h': '60',
-  // '2h': '120',
-  // '4h': '240'
+  '1h': '60',
+  '2h': '120',
+  '4h': '240'
 };
 
 
@@ -192,13 +192,12 @@ async function analyzeEMA(symbol, interval) {
 async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
-      console.log(`🔍 Analisi: ${coin} [${interval}]`);
       try {
         await analyzeEMA(coin, interval);
       } catch (err) {
         console.error(`❌ Errore durante l'analisi EMA per ${coin} [${interval}]:`, err.message);
       }
-      await new Promise(r => setTimeout(r, 250)); // breve pausa per evitare rate limit
+      await new Promise(r => setTimeout(r, 350)); // breve pausa per evitare rate limit
     }
   }
 }
