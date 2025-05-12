@@ -43,50 +43,27 @@ app.listen(PORT, () => {
   console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
 });
 
-// async function sendTelegramMessage(message) {
-//   for (let i = 0; i < TELEGRAM_TOKEN.length; i++) {
-//     const token = TELEGRAM_TOKEN[i].trim();
-//     const chatId = TELEGRAM_CHAT_ID[i] ? TELEGRAM_CHAT_ID[i].trim() : null;
-
-//     if (!chatId) continue;
-
-//     const url = `https://api.telegram.org/bot${token}/sendMessage`;
-//     try {
-//       await axios.post(url, {
-//         chat_id: chatId,
-//         text: message,
-//         parse_mode: "Markdown",
-//       });
-//       console.log(`📬 Telegram: ${message.split('\n')[0]} ➡️ Bot ${i + 1}`);
-//     } catch (err) {
-//       console.error(`Telegram error with bot ${i + 1}:`, err.message);
-//     }
-//   }
-// }
 async function sendTelegramMessage(message) {
   for (let i = 0; i < TELEGRAM_TOKEN.length; i++) {
     const token = TELEGRAM_TOKEN[i].trim();
     const chatId = TELEGRAM_CHAT_ID[i] ? TELEGRAM_CHAT_ID[i].trim() : null;
 
-    if (!chatId) {
-      console.warn(`⚠️ Chat ID mancante per il bot ${i + 1}`);
-      continue;
-    }
+    if (!chatId) continue;
 
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     try {
-      const response = await axios.post(url, {
+      await axios.post(url, {
         chat_id: chatId,
         text: message,
         parse_mode: "Markdown",
       });
-      console.log(`📬 Telegram: messaggio inviato con successo dal bot ${i + 1}`);
-      console.log(response.data);
+      console.log(`📬 Telegram: ${message.split('\n')[0]} ➡️ Bot ${i + 1}`);
     } catch (err) {
-      console.error(`❌ Telegram error con bot ${i + 1}:`, err.response?.data || err.message);
+      console.error(`Telegram error with bot ${i + 1}:`, err.message);
     }
   }
 }
+
 
 
 async function fetchKlines(symbol, interval, limit = 200) {
