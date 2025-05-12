@@ -64,10 +64,10 @@ async function sendTelegramMessage(message) {
 }
 
 async function fetchKlines(symbol, interval, limit = 200) {
-  const mappedInterval = intervalMap[interval];
+  const mappedInterval = intervalMap[intervals];
 
   if (!mappedInterval) {
-    console.error(`⚠️ Interval "${interval}" non valido o non mappato in intervalMap.`);
+    console.error(`⚠️ Interval "${intervals}" non valido o non mappato in intervalMap.`);
     return [];
   }
 
@@ -92,7 +92,7 @@ async function fetchKlines(symbol, interval, limit = 200) {
       time: Number(k[0])
     }));
   } catch (error) {
-    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${interval}]:`, error.message);
+    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${intervals}]:`, error.message);
     return [];
   }
 }
@@ -104,9 +104,9 @@ function getSupportResistance(prices, lookback = 20) {
   return { support, resistance };
 }
 
-async function analyzeEMA(symbol, interval) {
+async function analyzeEMA(symbol, intervals) {
   try {
-    const klines = await fetchKlines(symbol, interval, 300);
+    const klines = await fetchKlines(symbol, intervals, 300);
     const prices = klines.map(k => k.close);
     const volumes = klines.map(k => k.volume);
 
@@ -127,7 +127,7 @@ async function analyzeEMA(symbol, interval) {
     const macd = MACD.calculate(macdInput);
 
     if (ema12.length < 2 || ema26.length < 2 || rsi.length < 1 || macd.length < 1) {
-      console.log(`⏳ Dati insufficienti per ${symbol} [${interval}]`);
+      console.log(`⏳ Dati insufficienti per ${symbol} [${intervals}]`);
       return;
     }
 
@@ -152,16 +152,16 @@ async function analyzeEMA(symbol, interval) {
     if (prevEma12 > prevEma26 && lastEma12 < lastEma26) crossover = 'bearish';
 
     const now = Date.now();
-    const lastSignal = lastSignals[symbol][interval];
+    const lastSignal = lastSignals[symbol][intervals];
 
     const rsiCategory = lastRsi < 30 ? 'Ipervenduto' : lastRsi > 70 ? 'Ipercomprato' : 'Neutro';
     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
 
-    const shouldNotify = intervals.includes(interval);
+    const shouldNotify = intervals.includes(intervals);
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
-📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
+📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${intervals}*]
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
 
@@ -177,19 +177,19 @@ async function analyzeEMA(symbol, interval) {
       `.trim();
 
       await sendTelegramMessage(msg);
-      lastSignals[symbol][interval] = { type: crossover, timestamp: now };
+      lastSignals[symbol][intervals] = { type: crossover, timestamp: now };
     } else {
-       console.log(`📉 ${symbol} [${interval}]: nessun incrocio EMA.`);
+       console.log(`📉 ${symbol} [${intervals}]: nessun incrocio EMA.`);
     }
   } catch (err) {
-    console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
+    console.error(`❌ Errore su ${symbol} [${intervals}]:`, err.message);
   }
 }
 
 async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
-      await analyzeEMA(coin, interval);
+      await analyzeEMA(coin, intervals);
       await new Promise(r => setTimeout(r, 1000));
     }
   }
