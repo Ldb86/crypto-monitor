@@ -149,8 +149,9 @@ async function analyzeEMA(symbol, interval) {
     let crossover = null;
     const prevEma12 = ema12.at(-2);
     const prevEma26 = ema26.at(-2);
-    if (prevEma12 < prevEma26 && lastEma12 > lastEma26) crossover = 'bullish';
-    if (prevEma12 > prevEma26 && lastEma12 < lastEma26) crossover = 'bearish';
+    // if (prevEma12 < prevEma26 && lastEma12 > lastEma26) crossover = 'bullish';
+    // if (prevEma12 > prevEma26 && lastEma12 < lastEma26) crossover = 'bearish';
+    crossover = 'bullish'
 
     const now = Date.now();
     const lastSignal = lastSignals[symbol][interval];
