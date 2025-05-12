@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['1m', '5m', '15'];
+const intervals = ['1m', '5m', '15', '30m', '1h', '2h', '4h'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -102,7 +102,8 @@ async function analyzeEMA(symbol, interval) {
     const volNow = volumes.at(-1);
     const avgVol = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
 
-    const variation3min = ((prices.at(-1) - prices.at(-4)) / prices.at(-4)) * 100;
+    const { support, resistance } = getSupportResistance(prices, 20);
+
 
     let crossover = null;
     const prevEma12 = ema12.at(-2);
@@ -119,7 +120,7 @@ async function analyzeEMA(symbol, interval) {
 
       if (crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
-📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol}
+📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
 
@@ -130,13 +131,14 @@ async function analyzeEMA(symbol, interval) {
 - MACD: ${macdSignal}
 - RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
 - Volume: ${volumeSignal}
-- ⚠ Variazione 3min: ${variation3min.toFixed(2)}%
+- 📉 Supporto: $${support.toFixed(2)}
+- 📈 Resistenza: $${resistance.toFixed(2)}
       `.trim();
 
       await sendTelegramMessage(msg);
       lastSignals[symbol][interval] = { type: crossover, timestamp: now };
     } else {
-      console.log(`📉 ${symbol} [${interval}]: nessun incrocio EMA.`);
+       console.log(`📉 ${symbol} [${interval}]: nessun incrocio EMA.`);
     }
   } catch (err) {
     console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
