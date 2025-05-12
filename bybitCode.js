@@ -14,7 +14,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
+const intervals = ['1m', '5m', '15m', '30m', '1h', '2h', '4h'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -26,6 +26,7 @@ coins.forEach(coin => {
 });
 
 const intervalMap = {
+  '1m': '1',
   '5m': '5',
   '15m': '15',
   '30m': '30',
