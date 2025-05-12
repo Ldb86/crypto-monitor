@@ -23,7 +23,7 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
 
-const intervals = ['5m', '15m', '30m', '60m', '120m', '240m' ];
+const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
 
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
@@ -93,7 +93,7 @@ async function fetchKlines(symbol, interval, limit = 200) {
   const mappedInterval = intervalMap[interval];
 
   if (!mappedInterval) {
-    console.error(`⚠️ Interval "${intervals}" non valido o non mappato in intervalMap.`);
+    console.error(`⚠️ Interval "${interval}" non valido o non mappato in intervalMap.`);
     return [];
   }
 
