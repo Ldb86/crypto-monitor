@@ -158,8 +158,8 @@ async function analyzeEMA(symbol, interval) {
 
     const rsiCategory = lastRsi < 30 ? 'Ipervenduto' : lastRsi > 70 ? 'Ipercomprato' : 'Neutro';
     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
-    const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
-
+    //const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
+    //- Volume: ${volumeSignal}
     const shouldNotify = intervals.includes(interval);
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
       const msg = `
@@ -173,7 +173,6 @@ async function analyzeEMA(symbol, interval) {
 📈 EMA200: $${lastEma200.toFixed(2)}
 - MACD: ${macdSignal}
 - RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
-- Volume: ${volumeSignal}
 - 📉 Supporto: $${support.toFixed(2)}
 - 📈 Resistenza: $${resistance.toFixed(2)}
       `.trim();
