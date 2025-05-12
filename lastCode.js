@@ -97,96 +97,6 @@ async function fetchKlines(symbol, interval, limit = 200) {
   }
 }
 
-// async function analyzeEMA(symbol, interval) {
-//   try {
-//     const klines = await fetchKlines(symbol, interval, 300);
-
-//     // 🔽 🔽 🔽 PARTE DA RIMUOVERE SE NON VUOI IL FILTRO 🔽 🔽 🔽
-//     if (!klines || klines.length < 50) {
-//       console.log(`⏳ Dati insufficienti (meno di 50 candele) per ${symbol} [${interval}]`);
-//       return;
-//     }
-//     // 🔼 🔼 🔼 PARTE DA RIMUOVERE SE NON VUOI IL FILTRO 🔼 🔼 🔼
-
-//     const prices = klines.map(k => k.close);
-//     const volumes = klines.map(k => k.volume);
-
-//     const ema12 = EMA.calculate({ period: 12, values: prices });
-//     const ema26 = EMA.calculate({ period: 26, values: prices });
-//     const ema50 = EMA.calculate({ period: 50, values: prices });
-//     const ema200 = EMA.calculate({ period: 200, values: prices });
-
-//     const rsi = RSI.calculate({ period: 14, values: prices });
-//     const macdInput = {
-//       values: prices,
-//       fastPeriod: 12,
-//       slowPeriod: 26,
-//       signalPeriod: 9,
-//       SimpleMAOscillator: false,
-//       SimpleMASignal: false
-//     };
-//     const macd = MACD.calculate(macdInput);
-
-//     if (ema12.length < 2 || ema26.length < 2 || rsi.length < 1 || macd.length < 1) {
-//       console.log(`⏳ Dati insufficienti per ${symbol} [${interval}]`);
-//       return;
-//     }
-
-//     const lastPrice = prices.at(-1);
-//     const lastEma12 = ema12.at(-1);
-//     const lastEma26 = ema26.at(-1);
-//     const lastEma50 = ema50.at(-1);
-//     const lastEma200 = ema200.at(-1);
-//     const lastRsi = rsi.at(-1);
-//     const lastMacd = macd.at(-1);
-
-//     const volNow = volumes.at(-1);
-//     const avgVol = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-//     //const variation3min = ((prices.at(-1) - prices.at(-4)) / prices.at(-4)) * 100;
-
-//     const { support, resistance } = getSupportResistance(prices, 20);
-
-//     let crossover = null;
-//     const prevEma12 = ema12.at(-2);
-//     const prevEma26 = ema26.at(-2);
-//     if (prevEma12 < prevEma26 && lastEma12 > lastEma26) crossover = 'bullish';
-//     if (prevEma12 > prevEma26 && lastEma12 < lastEma26) crossover = 'bearish';
-
-//     const now = Date.now();
-//     const lastSignal = lastSignals[symbol][interval];
-
-//     const rsiCategory = lastRsi < 30 ? 'Ipervenduto' : lastRsi > 70 ? 'Ipercomprato' : 'Neutro';
-//     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
-//     const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
-
-//     const shouldNotify = intervals.includes(interval);
-//     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
-//       const msg = `
-// 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
-// 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
-// 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
-
-// 📈 EMA12: $${lastEma12.toFixed(2)}: ${lastPrice < lastEma12 ? 'Sotto ✅' : 'Sopra ❌'}
-// 📈 EMA26: $${lastEma26.toFixed(2)}: ${lastPrice < lastEma26 ? 'Sotto ✅' : 'Sopra ❌'}
-// 📈 EMA50: $${lastEma50.toFixed(2)}
-// 📈 EMA200: $${lastEma200.toFixed(2)}
-// - MACD: ${macdSignal}
-// - RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
-// - Volume: ${volumeSignal}
-// - 📉 Supporto: $${support.toFixed(2)}
-// - 📈 Resistenza: $${resistance.toFixed(2)}
-//       `.trim();
-
-//       await sendTelegramMessage(msg);
-//       lastSignals[symbol][interval] = { type: crossover, timestamp: now };
-//     } else {
-//        console.log(`📉 ${symbol} [${interval}]: nessun incrocio EMA.`);
-//     }
-//   } catch (err) {
-//     console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
-//   }
-// }
-
 function getSupportResistance(prices, lookback = 20) {
   const recentPrices = prices.slice(-lookback);
   const support = Math.min(...recentPrices);
@@ -280,7 +190,7 @@ async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
       await analyzeEMA(coin, interval);
-      await new Promise(r => setTimeout(r, 250));
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
 }
