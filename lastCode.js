@@ -3,6 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const { EMA, RSI, MACD } = require('technicalindicators');
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TELEGRAM_TOKEN = process.env.BOT_TOKENS.split(',');
@@ -13,7 +14,7 @@ const coins = [
   'BNBUSDT', 'UNIUSDT', 'XRPUSDT',
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
 ];
-const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
+const intervals = ['1m','5m', '15m', '30m', '1h', '2h', '4h'];
 const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
@@ -24,14 +25,14 @@ coins.forEach(coin => {
   });
 });
 
-const intervalMap = {
-  '5m': '5',
-  '15m': '15',
-  '30m': '30',
-  '1h': '60',
-  '2h': '120',
-  '4h': '240'
-};
+// const intervalMap = {
+//   '5m': '5',
+//   '15m': '15',
+//   '30m': '30',
+//   '1h': '60',
+//   '2h': '120',
+//   '4h': '240'
+// };
 
 app.get('/', (req, res) => {
   res.send('✅ EMA Alert Bot attivo');
@@ -63,38 +64,14 @@ async function sendTelegramMessage(message) {
 }
 
 async function fetchKlines(symbol, interval, limit = 200) {
-  const mappedInterval = intervalMap[interval];
-
-  if (!mappedInterval) {
-    console.error(`⚠️ Interval "${interval}" non valido o non mappato in intervalMap.`);
-    return [];
-  }
-
-  try {
-    const res = await axios.get('https://api.bybit.com/v5/market/kline', {
-      params: {
-        category: 'spot',
-        symbol,
-        interval: mappedInterval,
-        limit
-      }
-    });
-
-    const data = res.data?.result?.list;
-    if (!data || data.length === 0) {
-      throw new Error('Nessun dato restituito da Bybit.');
+   const url = `https://api.bybit.com/v5/market/kline?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    const res = await axios.get(url);
+    return res.data.map(k => ({
+        close: parseFloat(k[4]),
+        volume: parseFloat(k[5]),
+        time: k[0]
+      }));
     }
-
-    return data.reverse().map(k => ({
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-      time: Number(k[0])
-    }));
-  } catch (error) {
-    console.error(`❌ Errore nella fetchKlines da Bybit per ${symbol} [${interval}]:`, error.message);
-    return [];
-  }
-}
 
 function getSupportResistance(prices, lookback = 20) {
   const recent = prices.slice(-lookback);

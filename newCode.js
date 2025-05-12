@@ -55,13 +55,20 @@ async function sendTelegramMessage(message) {
 }
 
 async function fetchKlines(symbol, interval, limit = 200) {
-  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+   const url = `https://api.bybit.com/v5/market/kline?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   const res = await axios.get(url);
   return res.data.map(k => ({
     close: parseFloat(k[4]),
     volume: parseFloat(k[5]),
     time: k[0]
   }));
+}
+
+function getSupportResistance(prices, lookback = 20) {
+  const recent = prices.slice(-lookback);
+  const support = Math.min(...recent);
+  const resistance = Math.max(...recent);
+  return { support, resistance };
 }
 
 async function analyzeEMA(symbol, interval) {
@@ -149,7 +156,7 @@ async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
       await analyzeEMA(coin, interval);
-      await new Promise(r => setTimeout(r, 250));
+      await new Promise(r => setTimeout(r, 350));
     }
   }
 }
