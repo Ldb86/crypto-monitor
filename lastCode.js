@@ -174,9 +174,8 @@ async function analyzeEMA(symbol, interval) {
     let crossover = null;
     const prevEma12 = ema12.at(-2);
     const prevEma26 = ema26.at(-2);
-    // if (prevEma12 < prevEma26 && lastEma12 > lastEma26) crossover = 'bullish';
-    // if (prevEma12 > prevEma26 && lastEma12 < lastEma26) crossover = 'bearish';
-    crossover = 'bullish'
+    if (prevEma12 < prevEma26 && lastEma12 > lastEma26) crossover = 'bullish';
+    if (prevEma12 > prevEma26 && lastEma12 < lastEma26) crossover = 'bearish';
 
     const now = Date.now();
     const lastSignal = lastSignals[symbol][interval];
@@ -187,6 +186,8 @@ async function analyzeEMA(symbol, interval) {
 
     const shouldNotify = intervals.includes(interval);
     if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
+      console.log("🚨 Test: crossover rilevato per", symbol, `[${interval}]`);
+
       const msg = `
 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
 📍 Prezzo attuale: $${lastPrice.toFixed(2)}
