@@ -4,18 +4,43 @@ const axios = require('axios');
 const { EMA, RSI, MACD } = require('technicalindicators');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const TELEGRAM_TOKEN = process.env.BOT_TOKENS.split(',');
 const TELEGRAM_CHAT_ID = process.env.CHAT_IDS.split(',');
 
 const coins = [
   'BTCUSDT', 'ETHUSDT', 'SOLUSDT',
   'BNBUSDT', 'UNIUSDT', 'XRPUSDT',
-  'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT'
+  'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT',
+  'ONDOUSDT', 'DOGEUSDT', 'PEPEUSDT',
+  'DOTUSDT', 'ATOMUSDT', 'HBARUSDT', 
+  'TIAUSDT', 'SHIBUSDT'
 ];
 
-const intervals = ['5m', '15m', '30m', '1h', '2h', '4h'];
-const SIGNAL_INTERVAL_MS = 60 * 1000;
+const coinEmojis = {
+  BTCUSDT: '🟠', // arancione
+  ETHUSDT: '⚫', // nero
+  SOLUSDT: '🟢', // verde
+  BNBUSDT: '🟡', // giallo
+  UNIUSDT: '🟣', // viola
+  XRPUSDT: '🔵', // blu
+  LTCUSDT: '⚪', // bianco/grigio
+  AAVEUSDT: '🔷', // azzurro
+  SUIUSDT: '🔹', // blu chiaro
+  ENAUSDT: '🟪', // viola scuro
+  ONDOUSDT: '🟤', // marrone
+  DOGEUSDT: '🐶', // cane
+  DOTUSDT: '⚪', // bianco/grigio
+  ATOMUSDT: '🌌', // galassia
+  HBARUSDT: '🔴', // rosso
+  TIAUSDT: '🟡', // giallo
+  SHIBUSDT: '🐕', // cane
+  PEPEUSDT: '🐸' // rana
+ };
+
+
+const intervals = ['5m', '15m', '30m', '1h', '2h', '4h', '1d'];
+//const SIGNAL_INTERVAL_MS = 60 * 1000;
 
 const lastSignals = {};
 coins.forEach(coin => {
@@ -31,7 +56,8 @@ const intervalMap = {
   '30m': '30',
   '1h': '60',
   '2h': '120',
-  '4h': '240'
+  '4h': '240',
+  '1d': 'D'
 };
 
 
@@ -106,11 +132,17 @@ function getSupportResistance(prices, lookback = 20) {
   return { support, resistance };
 }
 
+
+function formatPrice(price) {
+  if (price < 0.01) return price.toFixed(9);
+  if (price < 1) return price.toFixed(4);
+  return price.toFixed(2);
+}
+
 async function analyzeEMA(symbol, interval) {
   try {
     const klines = await fetchKlines(symbol, interval, 300);
     const prices = klines.map(k => k.close);
-    const volumes = klines.map(k => k.volume);
 
     const ema12 = EMA.calculate({ period: 12, values: prices });
     const ema26 = EMA.calculate({ period: 26, values: prices });
@@ -141,12 +173,9 @@ async function analyzeEMA(symbol, interval) {
     const lastRsi = rsi.at(-1);
     const lastMacd = macd.at(-1);
 
-    const volNow = volumes.at(-1);
-    const avgVol = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-    //const variation3min = ((prices.at(-1) - prices.at(-4)) / prices.at(-4)) * 100;
-
     const { support, resistance } = getSupportResistance(prices, 20);
 
+    // Detect crossover
     let crossover = null;
     const prevEma12 = ema12.at(-2);
     const prevEma26 = ema26.at(-2);
@@ -158,36 +187,38 @@ async function analyzeEMA(symbol, interval) {
 
     const rsiCategory = lastRsi < 30 ? 'Ipervenduto' : lastRsi > 70 ? 'Ipercomprato' : 'Neutro';
     const macdSignal = lastMacd.MACD > lastMacd.signal ? 'Rialzista ✅' : 'Ribassista ✅';
-    //const volumeSignal = volNow > avgVol ? 'Superiore ✅' : 'Inferiore ✅';
-    //- Volume: ${volumeSignal}
+
     const shouldNotify = intervals.includes(interval);
-    if (shouldNotify && crossover && (lastSignal.type !== crossover || now - lastSignal.timestamp >= SIGNAL_INTERVAL_MS)) {
+    if (shouldNotify && crossover && lastSignal.type !== crossover) {
+      const emoji = coinEmojis[symbol] || '🔸';
       const msg = `
-📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per ${symbol} [*${interval}*]
-📍 Prezzo attuale: $${lastPrice.toFixed(2)}
+${emoji} 📉 Segnale ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'} per *${symbol}* [${interval}]
+📍 Prezzo attuale: $${formatPrice(lastPrice)}
 🔁 EMA 12 ha incrociato EMA 26: ${crossover.toUpperCase()}
 
-📈 EMA12: $${lastEma12.toFixed(2)}: ${lastPrice < lastEma12 ? 'Sotto ✅' : 'Sopra ❌'}
-📈 EMA26: $${lastEma26.toFixed(2)}: ${lastPrice < lastEma26 ? 'Sotto ✅' : 'Sopra ❌'}
-📈 EMA50: $${lastEma50.toFixed(2)}
-📈 EMA200: $${lastEma200.toFixed(2)}
-- MACD: ${macdSignal}
-- RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
-- 📉 Supporto: $${support.toFixed(2)}
-- 📈 Resistenza: $${resistance.toFixed(2)}
+📈 EMA12: $${formatPrice(lastEma12)}
+📈 EMA26: $${formatPrice(lastEma26)}
+📈 EMA50: $${formatPrice(lastEma50)}
+📈 EMA200: $${formatPrice(lastEma200)}
+
+MACD: ${macdSignal}
+RSI (14): ${lastRsi.toFixed(2)} (${rsiCategory}) ✅
+📉 Supporto: $${formatPrice(support)}
+📈 Resistenza: $${formatPrice(resistance)}
       `.trim();
 
       await sendTelegramMessage(msg);
       lastSignals[symbol][interval] = { type: crossover, timestamp: now };
     } else {
-       console.log(`📉 ${symbol} [${interval}]: nessun incrocio EMA.`);
+      console.log(`⏸ Nessun cambio trend per ${symbol} [${interval}]`);
     }
+
   } catch (err) {
     console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
   }
 }
-
-
+// Funzione principale per controllare il mercato
+// e inviare notifiche
 async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
@@ -200,6 +231,5 @@ async function checkMarket() {
     }
   }
 }
-
 
 setInterval(checkMarket, 60 * 1000);
