@@ -4,7 +4,7 @@ const axios = require('axios');
 const { EMA, RSI, MACD } = require('technicalindicators');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3000;
 const TELEGRAM_TOKEN = process.env.BOT_TOKENS.split(',');
 const TELEGRAM_CHAT_ID = process.env.CHAT_IDS.split(',');
 
