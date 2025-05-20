@@ -132,7 +132,6 @@ function getSupportResistance(prices, lookback = 20) {
   return { support, resistance };
 }
 
-
 function formatPrice(price) {
   if (price < 0.01) return price.toFixed(9);
   if (price < 1) return price.toFixed(4);
