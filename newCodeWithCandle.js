@@ -6,7 +6,7 @@ const { EMA, RSI, MACD, ADX } = require('technicalindicators');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ENV (array di bot/chat supportati, come nel tuo codice)
+// ENV
 const TELEGRAM_TOKEN = (process.env.BOT_TOKENS || '').split(',').map(s => s.trim()).filter(Boolean);
 const TELEGRAM_CHAT_ID = (process.env.CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -28,27 +28,25 @@ const intervals = ['15m','30m','1h','2h','4h','1d'];
 const intervalMap = { '15m':'15', '30m':'30', '1h':'60', '2h':'120', '4h':'240', '1d':'D' };
 
 // Parametri strategia
-const BOX_LOOKBACK = 20;           // ultime 20 candele (escludendo l’ultima)
+const BOX_LOOKBACK = 20;
 const ADX_PERIOD = 14;
-const ADX_LOWER = 18;              // soglia "consolidamento" ADX
-const TP_MULT = 1.0;               // ampiezza box
-const SL_MULT = 0.5;               // metà ampiezza box
-const MACD_FAST = 26;              // MACD 26/50
+const TP_MULT = 1.0;
+const SL_MULT = 0.5;
+const MACD_FAST = 26;
 const MACD_SLOW = 50;
 const MACD_SIGNAL = 9;
 
-// Stato anti-duplicati: memorizza ultimo breakout per symbol/interval
+// Stato anti-duplicati
 const lastBreakoutState = {};
 coins.forEach(c => {
   lastBreakoutState[c] = {};
-  intervals.forEach(tf => (lastBreakoutState[c][tf] = null)); // 'long' | 'short' | null
+  intervals.forEach(tf => (lastBreakoutState[c][tf] = null)); 
 });
 
-// --- Server di salute ---
+// --- Server ---
 app.get('/', (req, res) => {
-  res.send('✅ Breakout Bot attivo (EMA/MACD/ADX/Box/TP-SL) – notifiche solo su breakout');
+  res.send('✅ Breakout Bot attivo (EMA/MACD/ADX/Box/TP-SL) – notifiche SOLO su incrocio MACD');
 });
-
 app.listen(PORT, () => console.log(`🚀 Server in ascolto sulla porta ${PORT}`));
 
 // --- Utils ---
@@ -64,7 +62,6 @@ async function sendTelegramMessage(message) {
     const token = TELEGRAM_TOKEN[i];
     const chatId = TELEGRAM_CHAT_ID[i];
     if (!token || !chatId) continue;
-
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     try {
       await axios.post(url, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
@@ -77,10 +74,6 @@ async function sendTelegramMessage(message) {
 
 async function fetchKlines(symbol, interval, limit = 300, retry = 2) {
   const mappedInterval = intervalMap[interval];
-  if (!mappedInterval) {
-    console.error(`⚠️ Interval "${interval}" non mappato.`);
-    return [];
-  }
   try {
     const res = await axios.get('https://api.bybit.com/v5/market/kline', {
       params: { category: 'spot', symbol, interval: mappedInterval, limit },
@@ -88,8 +81,6 @@ async function fetchKlines(symbol, interval, limit = 300, retry = 2) {
     });
     const list = res?.data?.result?.list;
     if (!Array.isArray(list) || list.length === 0) throw new Error('Lista candele vuota');
-
-    // reverse() per avere dal più vecchio al più recente
     return list.reverse().map(k => ({
       time: Number(k[0]),
       open: parseFloat(k[1]),
@@ -113,18 +104,15 @@ async function fetchKlines(symbol, interval, limit = 300, retry = 2) {
 }
 
 function getRangeBox(klines, lookback = BOX_LOOKBACK) {
-  // Box su ultime N candele **chiuse prima** dell’ultima (esclude l’ultima candela)
   if (!Array.isArray(klines) || klines.length < lookback + 1) return null;
   const slice = klines.slice(-(lookback + 1), -1);
   const highs = slice.map(k => k.high);
   const lows = slice.map(k => k.low);
   if (highs.length === 0 || lows.length === 0) return null;
-
   const high = Math.max(...highs);
   const low = Math.min(...lows);
   const size = high - low;
   if (!Number.isFinite(high) || !Number.isFinite(low) || size <= 0) return null;
-
   return { high, low, size };
 }
 
@@ -148,6 +136,7 @@ function macdCrossover(values) {
   return null;
 }
 
+// --- Analisi ---
 async function analyze(symbol, interval) {
   const klines = await fetchKlines(symbol, interval, 300);
   if (klines.length < 200) {
@@ -161,13 +150,11 @@ async function analyze(symbol, interval) {
   const volumes = klines.map(k => k.volume);
   const lastClose = closes.at(-1);
 
-  // EMA prezzi
   const ema12 = EMA.calculate({ period: 12, values: closes }).at(-1);
   const ema26 = EMA.calculate({ period: 26, values: closes }).at(-1);
   const ema50 = EMA.calculate({ period: 50, values: closes }).at(-1);
   const ema200 = EMA.calculate({ period: 200, values: closes }).at(-1);
 
-  // MACD 26/50
   const macdVals = MACD.calculate({
     values: closes,
     fastPeriod: MACD_FAST,
@@ -177,43 +164,26 @@ async function analyze(symbol, interval) {
     SimpleMASignal: false
   });
   const lastMACD = macdVals.at(-1);
-  const macdCross = macdCrossover(macdVals); // 'bullish' | 'bearish' | null
+  const macdCross = macdCrossover(macdVals);
 
-  // ADX
   const adxVals = ADX.calculate({ high: highs, low: lows, close: closes, period: ADX_PERIOD });
   const lastADX = adxVals.at(-1)?.adx;
 
-  // Box range
   const box = getRangeBox(klines, BOX_LOOKBACK);
   if (!box) {
     console.log(`⚠️ Box non calcolabile per ${symbol} [${interval}]`);
     return;
   }
 
-  // Breakout (ultima candela CHIUSA rispetto al box calcolato prima dell’ultima)
-  let breakoutDir = null; // 'long' | 'short' | null
-  if (lastClose > box.high) breakoutDir = 'long';
-  else if (lastClose < box.low) breakoutDir = 'short';
-
-  // Filtri: notifico SOLO se breakout e (ADX basso OR MACD crossover recente)
-  const isADXLow = Number.isFinite(lastADX) && lastADX < ADX_LOWER;
-  const macdRecent = macdCross !== null; // crossover tra le ultime 2 candele
-
-  if (!breakoutDir || !(isADXLow || macdRecent)) {
-    // Reset stato quando rientra nel box (così non blocchiamo nuovi breakout)
-    if (breakoutDir === null && lastBreakoutState[symbol][interval] !== null) {
-      lastBreakoutState[symbol][interval] = null;
-    }
+  // 👉 Notifico SOLO se c’è incrocio MACD
+  if (!macdCross) {
     return;
   }
 
-  // Anti duplicati: invia solo se direzione cambiata rispetto all’ultimo breakout
-  if (lastBreakoutState[symbol][interval] === breakoutDir) return;
+  // Direzione breakout simulata solo per messaggio
+  let breakoutDir = lastClose > box.high ? 'long' : (lastClose < box.low ? 'short' : 'long');
 
-  // Volume dot (pallino)
   const hasVolumeDot = getVolumeDot(volumes);
-
-  // TP/SL dalla chiusura dell’ultima candela
   let tp = null, sl = null;
   if (breakoutDir === 'long') {
     tp = lastClose + TP_MULT * box.size;
@@ -223,7 +193,6 @@ async function analyze(symbol, interval) {
     sl = lastClose + SL_MULT * box.size;
   }
 
-  // Messaggio
   const emoji = coinEmojis[symbol] || '🔸';
   const arrow = breakoutDir === 'long' ? '🟢⬆️' : '🔴⬇️';
   const dot = hasVolumeDot ? (breakoutDir === 'long' ? '🟢•' : '🔴•') : '';
@@ -240,8 +209,8 @@ ${arrow} ${dot} Prezzo: $${formatPrice(lastClose)}
 • Low:  $${formatPrice(box.low)}
 • Size: $${formatPrice(box.size)}
 
-📐 ADX(${ADX_PERIOD}) = ${Number.isFinite(lastADX) ? lastADX.toFixed(2) : 'N/A'} (soglia ${ADX_LOWER}) ${isADXLow ? '✅' : '❌'}
-${macdLine} ${macdCross ? (macdCross === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH') : '—'}
+📐 ADX(${ADX_PERIOD}) = ${Number.isFinite(lastADX) ? lastADX.toFixed(2) : 'N/A'}
+${macdLine} ${macdCross === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
 
 📈 EMA:
 • 12:  $${formatPrice(ema12)}
@@ -257,6 +226,7 @@ ${macdLine} ${macdCross ? (macdCross === 'bullish' ? '✅ Cross BULLISH' : '✅ 
   lastBreakoutState[symbol][interval] = breakoutDir;
 }
 
+// --- Loop ---
 async function checkMarket() {
   for (const coin of coins) {
     for (const interval of intervals) {
@@ -265,12 +235,9 @@ async function checkMarket() {
       } catch (err) {
         console.error(`❌ Errore analyze ${coin} [${interval}]:`, err.message);
       }
-      // piccola pausa per rate limit
       await new Promise(r => setTimeout(r, 300));
     }
   }
 }
-
-// Avvio periodico: ogni minuto
 setInterval(checkMarket, 60 * 1000);
 checkMarket();
