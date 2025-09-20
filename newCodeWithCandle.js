@@ -36,16 +36,16 @@ const MACD_FAST = 26;
 const MACD_SLOW = 50;
 const MACD_SIGNAL = 9;
 
-// Stato anti-duplicati
-const lastBreakoutState = {};
+// Stato anti-duplicati MACD cross
+const lastMacdCrossState = {};
 coins.forEach(c => {
-  lastBreakoutState[c] = {};
-  intervals.forEach(tf => (lastBreakoutState[c][tf] = null)); 
+  lastMacdCrossState[c] = {};
+  intervals.forEach(tf => (lastMacdCrossState[c][tf] = null)); // 'bullish' | 'bearish' | null
 });
 
 // --- Server ---
 app.get('/', (req, res) => {
-  res.send('✅ Breakout Bot attivo (EMA/MACD/ADX/Box/TP-SL) – notifiche SOLO su incrocio MACD');
+  res.send('✅ Breakout Bot attivo – notifiche SOLO su nuovo incrocio MACD');
 });
 app.listen(PORT, () => console.log(`🚀 Server in ascolto sulla porta ${PORT}`));
 
@@ -175,10 +175,11 @@ async function analyze(symbol, interval) {
     return;
   }
 
-  // 👉 Notifico SOLO se c’è incrocio MACD
-  if (!macdCross) {
+  // 👉 Notifico SOLO se c’è incrocio MACD NUOVO
+  if (!macdCross || lastMacdCrossState[symbol][interval] === macdCross) {
     return;
   }
+  lastMacdCrossState[symbol][interval] = macdCross;
 
   // Direzione breakout simulata solo per messaggio
   let breakoutDir = lastClose > box.high ? 'long' : (lastClose < box.low ? 'short' : 'long');
@@ -223,7 +224,6 @@ ${macdLine} ${macdCross === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH
 `.trim();
 
   await sendTelegramMessage(msg);
-  lastBreakoutState[symbol][interval] = breakoutDir;
 }
 
 // --- Loop ---
