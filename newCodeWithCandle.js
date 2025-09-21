@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const { EMA, RSI, MACD } = require('technicalindicators');
+const { EMA, MACD } = require('technicalindicators');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,7 +13,7 @@ const coins = [
   'BNBUSDT', 'UNIUSDT', 'XRPUSDT',
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT',
   'ONDOUSDT', 'DOGEUSDT', 'PEPEUSDT',
-  'DOTUSDT', 'ATOMUSDT', 'HBARUSDT', 
+  'DOTUSDT', 'ATOMUSDT', 'HBARUSDT',
   'TIAUSDT', 'SHIBUSDT'
 ];
 
@@ -25,186 +25,131 @@ const coinEmojis = {
 };
 
 const intervals = ['15m', '30m', '1h', '2h', '4h', '1d'];
-const intervalMap = {
-  '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D'
-};
+const intervalMap = { '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D' };
 
 const lastSignals = {};
-coins.forEach(coin => {
-  lastSignals[coin] = {};
-  intervals.forEach(tf => {
-    lastSignals[coin][tf] = { type: null, timestamp: 0 };
-  });
-});
+coins.forEach(c => { lastSignals[c] = {}; intervals.forEach(tf => { lastSignals[c][tf] = { type: null }; }); });
 
-app.get('/', (req, res) => {
-  res.send('✅ EMA MACD Bot attivo');
-});
+app.get('/', (req, res) => res.send('✅ MACD + RangeBox Bot attivo'));
+app.listen(PORT, () => console.log(`🚀 Server in ascolto sulla porta ${PORT}`));
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
-});
-
-async function sendTelegramMessage(message) {
+// ──────────────── TELEGRAM ────────────────
+async function sendTelegramMessage(msg) {
   for (let i = 0; i < TELEGRAM_TOKEN.length; i++) {
-    const token = TELEGRAM_TOKEN[i].trim();
-    const chatId = TELEGRAM_CHAT_ID[i]?.trim();
-    if (!chatId) continue;
-
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN[i].trim()}/sendMessage`;
     try {
-      await axios.post(url, {
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown'
-      });
-      console.log(`📬 Telegram: ${message.split('\n')[0]} ➡️ Bot ${i + 1}`);
-    } catch (err) {
-      console.error(`Telegram error with bot ${i + 1}:`, err.message);
+      await axios.post(url, { chat_id: TELEGRAM_CHAT_ID[i].trim(), text: msg, parse_mode: 'Markdown' });
+      console.log(`📬 Telegram inviato ➡️ Bot ${i + 1}`);
+    } catch (e) {
+      console.error(`❌ Telegram error:`, e.message);
     }
   }
 }
 
-async function fetchKlines(symbol, interval, limit = 300, retry = 2) {
-  const mappedInterval = intervalMap[interval];
-  if (!mappedInterval) {
-    console.error(`⚠️ Interval "${interval}" non valido.`);
-    return [];
-  }
-
+// ──────────────── BYBIT DATA ────────────────
+async function fetchKlines(symbol, interval, limit = 300) {
   try {
     const res = await axios.get('https://api.bybit.com/v5/market/kline', {
-      params: { category: 'spot', symbol, interval: mappedInterval, limit },
+      params: { category: 'spot', symbol, interval: intervalMap[interval], limit },
       timeout: 10000
     });
-
-    const data = res.data?.result?.list;
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error('Dati mancanti da Bybit.');
-    }
-
-    return data.reverse().map(k => ({
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-      time: Number(k[0]),
-      high: parseFloat(k[2]),
-      low: parseFloat(k[3])
+    return res.data.result.list.reverse().map(k => ({
+      time: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5]
     }));
-  } catch (error) {
-    if (retry > 0) {
-      console.warn(`🔁 Retry per ${symbol} [${interval}]...`);
-      await new Promise(res => setTimeout(res, 1000));
-      return fetchKlines(symbol, interval, limit, retry - 1);
-    }
-    console.error(`❌ Errore fetchKlines ${symbol} [${interval}]: ${error.message}`);
+  } catch (err) {
+    console.error(`⚠️ fetchKlines ${symbol}[${interval}] error:`, err.message);
     return [];
   }
 }
 
-function formatPrice(price) {
-  if (price < 0.01) return price.toFixed(9);
-  if (price < 1) return price.toFixed(4);
-  return price.toFixed(2);
+// ──────────────── HELPERS ────────────────
+function formatPrice(p) {
+  if (!p || isNaN(p)) return 'N/A';
+  if (p < 0.01) return p.toFixed(9);
+  if (p < 1) return p.toFixed(4);
+  return p.toFixed(2);
 }
 
 function getRangeBox(klines, lookback = 20) {
+  if (klines.length < lookback) return { high: NaN, low: NaN, size: NaN };
   const highs = klines.slice(-lookback).map(k => k.high);
   const lows = klines.slice(-lookback).map(k => k.low);
   const high = Math.max(...highs);
   const low = Math.min(...lows);
-  const size = high - low;
-  return { high, low, size };
+  return { high, low, size: high - low };
 }
 
-async function analyzeEMA(symbol, interval) {
-  try {
-    const klines = await fetchKlines(symbol, interval, 300);
-    const prices = klines.map(k => k.close);
-    if (prices.length < 200) {
-      console.log(`⏳ Dati insufficienti per ${symbol} [${interval}]`);
-      return;
-    }
+// ──────────────── ANALISI ────────────────
+async function analyze(symbol, interval) {
+  const klines = await fetchKlines(symbol, interval, 300);
+  if (klines.length < 60) return;
 
-    const ema12 = EMA.calculate({ period: 12, values: prices });
-    const ema26 = EMA.calculate({ period: 26, values: prices });
-    const ema50 = EMA.calculate({ period: 50, values: prices });
-    const ema200 = EMA.calculate({ period: 200, values: prices });
-    const rsi = RSI.calculate({ period: 14, values: prices });
+  const prices = klines.map(k => k.close);
+  const ema12 = EMA.calculate({ period: 12, values: prices }).at(-1);
+  const ema26 = EMA.calculate({ period: 26, values: prices }).at(-1);
+  const ema50 = EMA.calculate({ period: 50, values: prices }).at(-1);
+  const ema200 = EMA.calculate({ period: 200, values: prices }).at(-1);
 
-    // ✅ MACD standard (12/26/9)
-    const macdCustom = MACD.calculate({
-      values: prices,
-      fastPeriod: 12,
-      slowPeriod: 26,
-      signalPeriod: 9,
-      SimpleMAOscillator: false,
-      SimpleMASignal: false
-    });
+  const macdVals = MACD.calculate({
+    values: prices, fastPeriod: 26, slowPeriod: 50, signalPeriod: 9
+  });
+  if (macdVals.length < 2) return;
 
-    if (
-      ema12.length < 1 || ema26.length < 1 ||
-      ema50.length < 1 || ema200.length < 1 ||
-      macdCustom.length < 2 || rsi.length < 1
-    ) {
-      console.log(`⏳ Indicatori insufficienti per ${symbol} [${interval}]`);
-      return;
-    }
+  const lastMacd = macdVals.at(-1), prevMacd = macdVals.at(-2);
+  const crossover =
+    prevMacd.MACD < prevMacd.signal && lastMacd.MACD > lastMacd.signal ? 'bullish' :
+    prevMacd.MACD > prevMacd.signal && lastMacd.MACD < lastMacd.signal ? 'bearish' : null;
 
-    const lastPrice = prices.at(-1);
-    const lastEma12 = ema12.at(-1);
-    const lastEma26 = ema26.at(-1);
-    const lastEma50 = ema50.at(-1);
-    const lastEma200 = ema200.at(-1);
-    const lastRsi = rsi.at(-1);
-    const lastMacd = macdCustom.at(-1);
-    const prevMacd = macdCustom.at(-2);
+  if (!crossover) return;
 
-    const rangeBox = getRangeBox(klines);
-    if (isNaN(rangeBox.high) || isNaN(rangeBox.low) || isNaN(rangeBox.size)) {
-      console.error(`❌ NaN nei dati range per ${symbol} [${interval}]`);
-      return;
-    }
+  const rangeBox = getRangeBox(klines);
+  const lastPrice = prices.at(-1);
+  const direction = crossover === 'bullish' ? 'long' : 'short';
 
-    let crossover = null;
-    if (prevMacd.MACD < prevMacd.signal && lastMacd.MACD > lastMacd.signal) crossover = 'bullish';
-    if (prevMacd.MACD > prevMacd.signal && lastMacd.MACD < lastMacd.signal) crossover = 'bearish';
+  // TP/SL anche senza range valido
+  let boxSize = isNaN(rangeBox.size) || rangeBox.size <= 0 ? lastPrice * 0.01 : rangeBox.size;
+  let tp = direction === 'long' ? lastPrice + boxSize : lastPrice - boxSize;
+  let sl = direction === 'long' ? lastPrice - boxSize * 0.5 : lastPrice + boxSize * 0.5;
 
-    const lastSignal = lastSignals[symbol][interval];
-    const rsiCategory = lastRsi < 30 ? 'Ipervenduto' : lastRsi > 70 ? 'Ipercomprato' : 'Neutro';
+  // breakout check
+  const breakout =
+    lastPrice > rangeBox.high ? 'up' :
+    lastPrice < rangeBox.low ? 'down' : null;
 
-    if (crossover && lastSignal.type !== crossover) {
-      const emoji = coinEmojis[symbol] || '🔸';
-      const msg = `
-${emoji} ⚙️ *MACD (12/26/9) ${crossover === 'bullish' ? 'LONG 🟢' : 'SHORT 🔴'}* su *${symbol}* [${interval}]
-📍 Prezzo attuale: $${formatPrice(lastPrice)}
+  const lastSignal = lastSignals[symbol][interval];
+  if (lastSignal.type === crossover && lastSignal.breakout === breakout) return;
 
-📦 Box Range High: $${formatPrice(rangeBox.high)}
-📦 Box Range Low: $${formatPrice(rangeBox.low)}
-📦 Box Size: $${formatPrice(rangeBox.size)}
+  const emoji = coinEmojis[symbol] || '🔸';
+  const msg = `
+${emoji} *BREAKOUT + MACD (26/50)* su *${symbol}* [${interval}]
+${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} | Prezzo: $${formatPrice(lastPrice)}
 
-📊 EMA:
-• EMA12: $${formatPrice(lastEma12)}
-• EMA26: $${formatPrice(lastEma26)}
-• EMA50: $${formatPrice(lastEma50)}
-• EMA200: $${formatPrice(lastEma200)}
+📦 Box (ultime 20 candele)
+• High: $${formatPrice(rangeBox.high)}
+• Low:  $${formatPrice(rangeBox.low)}
+• Size: $${formatPrice(rangeBox.size)}
 
-📈 RSI: ${lastRsi.toFixed(2)} (${rsiCategory})
-      `.trim();
+${crossover === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
 
-      await sendTelegramMessage(msg);
-      lastSignals[symbol][interval].type = crossover;
-    } else {
-      console.log(`⏸ Nessun nuovo incrocio MACD per ${symbol} [${interval}]`);
-    }
-  } catch (err) {
-    console.error(`❌ Errore su ${symbol} [${interval}]:`, err.message);
-  }
+📈 EMA:
+• 12:  $${formatPrice(ema12)}
+• 26:  $${formatPrice(ema26)}
+• 50:  $${formatPrice(ema50)}
+• 200: $${formatPrice(ema200)}
+
+🎯 TP: $${formatPrice(tp)}
+🛑 SL: $${formatPrice(sl)}
+`.trim();
+
+  await sendTelegramMessage(msg);
+  lastSignals[symbol][interval] = { type: crossover, breakout };
 }
 
+// ──────────────── LOOP ────────────────
 async function checkMarket() {
-  for (const coin of coins) {
-    for (const interval of intervals) {
-      await analyzeEMA(coin, interval);
+  for (const c of coins) {
+    for (const tf of intervals) {
+      await analyze(c, tf);
       await new Promise(r => setTimeout(r, 350));
     }
   }
