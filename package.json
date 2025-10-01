@@ -1,9 +1,9 @@
 {
   "name": "crypto-monitor",
   "version": "1.0.0",
-  "main": "newCodeWithCandle.js",
+  "main": "codeWithBoxRange.js",
   "scripts": {
-    "start": "node newCodeWithCandle.js"
+    "start": "node codeWithBoxRange.js"
   },
   "keywords": [],
   "author": "",
