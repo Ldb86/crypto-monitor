@@ -130,7 +130,7 @@ async function analyze(symbol, interval) {
 
       const emoji = coinEmojis[symbol] || '🔸';
       const msg = `
-${emoji} *MACD (26/50) + BREAKOUT* su *${symbol}* [${interval}]
+${emoji} *MACD (26/50) + BREAKOUT with range box* su *${symbol}* [${interval}]
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} | Prezzo: $${formatPrice(lastPrice)}
 
 📦 Box (ultime 20 candele)
