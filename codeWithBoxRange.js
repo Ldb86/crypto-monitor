@@ -24,8 +24,8 @@ const coinEmojis = {
   TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸'
 };
 
-const intervals = ['30m', '1h', '2h', '4h', '1d'];
-const intervalMap = { '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D' };
+const intervals = ['30m', '1h', '2h', '4h', '12h', '1d'];
+const intervalMap = { '30m': '30', '1h': '60', '2h': '120', '4h': '240', '12h' : '720', '1d': 'D' };
 
 const lastSignals = {};
 coins.forEach(c => { lastSignals[c] = {}; intervals.forEach(tf => { lastSignals[c][tf] = { macd: null, notified: false }; }); });
