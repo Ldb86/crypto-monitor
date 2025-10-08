@@ -25,10 +25,15 @@ const coinEmojis = {
 };
 
 const intervals = ['30m', '1h', '2h', '4h', '12h', '1d'];
-const intervalMap = { '30m': '30', '1h': '60', '2h': '120', '4h': '240', '12h' : '720', '1d': 'D' };
+const intervalMap = { '30m': '30', '1h': '60', '2h': '120', '4h': '240', '12h': '720', '1d': 'D' };
 
 const lastSignals = {};
-coins.forEach(c => { lastSignals[c] = {}; intervals.forEach(tf => { lastSignals[c][tf] = { macd: null, notified: false }; }); });
+coins.forEach(c => {
+  lastSignals[c] = {};
+  intervals.forEach(tf => {
+    lastSignals[c][tf] = { macd: null, notified: false };
+  });
+});
 
 app.get('/', (req, res) => res.send('✅ MACD + Breakout Bot attivo'));
 app.listen(PORT, () => console.log(`🚀 Server in ascolto sulla porta ${PORT}`));
@@ -106,30 +111,54 @@ async function analyze(symbol, interval) {
   // Stato precedente
   const state = lastSignals[symbol][interval];
 
-  // 1) Arma il segnale MACD
+  // Controllo breakout
+  const breakout =
+    lastPrice > rangeBox.high ? 'up' :
+    lastPrice < rangeBox.low ? 'down' : null;
+
+  // 1) Se c’è crossover → salvo segnale
   if (crossover) {
     state.macd = crossover;
     state.notified = false;
     console.log(`⚡ ${symbol}[${interval}] MACD ${crossover} armato`);
+
+    // Se breakout è nello stesso momento → invio subito
+    if (
+      (crossover === 'bullish' && breakout === 'up') ||
+      (crossover === 'bearish' && breakout === 'down')
+    ) {
+      await sendSignal(symbol, interval, lastPrice, rangeBox, crossover, ema12, ema26, ema50, ema200);
+      state.notified = true;
+    }
     return;
   }
 
-  // 2) Breakout dopo incrocio
+  // 2) Se già armato e breakout avviene dopo
   if (state.macd && !state.notified) {
-    const breakout =
-      lastPrice > rangeBox.high ? 'up' :
-      lastPrice < rangeBox.low ? 'down' : null;
+    if (
+      (state.macd === 'bullish' && breakout === 'up') ||
+      (state.macd === 'bearish' && breakout === 'down')
+    ) {
+      await sendSignal(symbol, interval, lastPrice, rangeBox, state.macd, ema12, ema26, ema50, ema200);
+      state.notified = true;
+    }
+  }
 
-    if ((state.macd === 'bullish' && breakout === 'up') ||
-        (state.macd === 'bearish' && breakout === 'down')) {
-      
-      const direction = state.macd === 'bullish' ? 'long' : 'short';
-      const boxSize = isNaN(rangeBox.size) || rangeBox.size <= 0 ? lastPrice * 0.01 : rangeBox.size;
-      const tp = direction === 'long' ? lastPrice + boxSize : lastPrice - boxSize;
-      const sl = direction === 'long' ? lastPrice - boxSize * 0.5 : lastPrice + boxSize * 0.5;
+  // 🔍 Log extra: breakout ma nessun MACD armato
+  if (breakout && !state.macd) {
+    console.log(`📊 ${symbol}[${interval}] breakout ${breakout} ma nessun MACD armato`);
+  }
+}
 
-      const emoji = coinEmojis[symbol] || '🔸';
-      const msg = `
+// ──────────────── INVIO MESSAGGIO ────────────────
+async function sendSignal(symbol, interval, lastPrice, rangeBox, macd, ema12, ema26, ema50, ema200) {
+  const direction = macd === 'bullish' ? 'long' : 'short';
+  const boxSize = isNaN(rangeBox.size) || rangeBox.size <= 0 ? lastPrice * 0.01 : rangeBox.size;
+  const tp = direction === 'long' ? lastPrice + boxSize : lastPrice - boxSize;
+  const sl = direction === 'long' ? lastPrice - boxSize * 0.5 : lastPrice + boxSize * 0.5;
+
+  const emoji = coinEmojis[symbol] || '🔸';
+  const msg = `
 ✋ ${emoji} *MACD (26/50) + BREAKOUT with range box* su *${symbol}* [${interval}]
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} | Prezzo: $${formatPrice(lastPrice)}
 
@@ -138,7 +167,7 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} | Prezzo: $${formatPrice(la
 • Low:  $${formatPrice(rangeBox.low)}
 • Size: $${formatPrice(rangeBox.size)}
 
-${state.macd === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
+${macd === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
 
 📈 EMA:
 • 12:  $${formatPrice(ema12)}
@@ -150,10 +179,7 @@ ${state.macd === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
 🛑 SL: $${formatPrice(sl)}
 `.trim();
 
-      await sendTelegramMessage(msg);
-      state.notified = true;
-    }
-  }
+  await sendTelegramMessage(msg);
 }
 
 // ──────────────── LOOP ────────────────
