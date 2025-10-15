@@ -1,3 +1,5 @@
+//it works but sends too much notifications, when the breakout is verified and then everytime we have a new value 
+
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -24,8 +26,8 @@ const coinEmojis = {
   TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸'
 };
 
-const intervals = ['30m', '1h', '2h', '4h', '12h', '1d'];
-const intervalMap = { '30m': '30', '1h': '60', '2h': '120', '4h': '240', '12h': '720', '1d': 'D' };
+const intervals = ['15m', '30m', '1h', '2h', '4h', '12h', '1d', '1w'];
+const intervalMap = {'15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '12h': '720', '1d': 'D', '1w': 'W' };
 
 const lastSignals = {};
 coins.forEach(c => {
@@ -75,10 +77,12 @@ function formatPrice(p) {
   return p.toFixed(2);
 }
 
+// 🔧 FIX: box calcolato SENZA l’ultima candela
 function getRangeBox(klines, lookback = 20) {
-  if (klines.length < lookback) return { high: NaN, low: NaN, size: NaN };
-  const highs = klines.slice(-lookback).map(k => k.high);
-  const lows = klines.slice(-lookback).map(k => k.low);
+  if (klines.length <= lookback + 1) return { high: NaN, low: NaN, size: NaN };
+  const slice = klines.slice(-(lookback + 1), -1);
+  const highs = slice.map(k => k.high);
+  const lows = slice.map(k => k.low);
   const high = Math.max(...highs);
   const low = Math.min(...lows);
   return { high, low, size: high - low };
@@ -108,21 +112,18 @@ async function analyze(symbol, interval) {
   const lastPrice = prices.at(-1);
   const rangeBox = getRangeBox(klines);
 
-  // Stato precedente
   const state = lastSignals[symbol][interval];
 
-  // Controllo breakout
   const breakout =
     lastPrice > rangeBox.high ? 'up' :
     lastPrice < rangeBox.low ? 'down' : null;
 
-  // 1) Se c’è crossover → salvo segnale
+  // Se c’è crossover → salvo segnale
   if (crossover) {
     state.macd = crossover;
     state.notified = false;
     console.log(`⚡ ${symbol}[${interval}] MACD ${crossover} armato`);
 
-    // Se breakout è nello stesso momento → invio subito
     if (
       (crossover === 'bullish' && breakout === 'up') ||
       (crossover === 'bearish' && breakout === 'down')
@@ -133,7 +134,7 @@ async function analyze(symbol, interval) {
     return;
   }
 
-  // 2) Se già armato e breakout avviene dopo
+  // Se già armato e breakout avviene dopo
   if (state.macd && !state.notified) {
     if (
       (state.macd === 'bullish' && breakout === 'up') ||
@@ -142,11 +143,6 @@ async function analyze(symbol, interval) {
       await sendSignal(symbol, interval, lastPrice, rangeBox, state.macd, ema12, ema26, ema50, ema200);
       state.notified = true;
     }
-  }
-
-  // 🔍 Log extra: breakout ma nessun MACD armato
-  if (breakout && !state.macd) {
-    console.log(`📊 ${symbol}[${interval}] breakout ${breakout} ma nessun MACD armato`);
   }
 }
 
