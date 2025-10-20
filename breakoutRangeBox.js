@@ -25,23 +25,24 @@ const coinEmojis = {
 };
 
 const intervals = ['15m', '30m', '1h', '2h', '4h', '12h', '1d', '1w'];
-const intervalMap = {'15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '12h': '720', '1d': 'D', '1w': 'W' };
+const intervalMap = {
+  '15m': '15', '30m': '30', '1h': '60', '2h': '120',
+  '4h': '240', '12h': '720', '1d': 'D', '1w': 'W'
+};
 
 // ──────────────── STATO ────────────────
 const lastSignals = {};
 coins.forEach(c => {
   lastSignals[c] = {};
   intervals.forEach(tf => {
-    lastSignals[c][tf] = { 
-      macd: null, 
-      notified: false,
+    lastSignals[c][tf] = {
+      macd: null,
       breakoutDone: false,
-      lastDirection: null // 👈 traccia ultima direzione notificata
+      lastDirection: null
     };
   });
 });
 
-// ──────────────── ORARIO ────────────────
 function now() {
   const d = new Date();
   return `[${d.toLocaleTimeString()}]`;
@@ -52,11 +53,15 @@ app.get('/', (req, res) => res.send('✅ MACD + Breakout Bot attivo'));
 app.listen(PORT, () => console.log(`🚀 Server in ascolto sulla porta ${PORT}`));
 
 // ──────────────── TELEGRAM ────────────────
-async function sendTelegramMessage(msg) {
+async function sendTelegramMessage(msg, symbol, interval) {
   for (let i = 0; i < TELEGRAM_TOKEN.length; i++) {
     const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN[i].trim()}/sendMessage`;
     try {
-      await axios.post(url, { chat_id: TELEGRAM_CHAT_ID[i].trim(), text: msg, parse_mode: 'Markdown' });
+      await axios.post(url, {
+        chat_id: TELEGRAM_CHAT_ID[i].trim(),
+        text: msg,
+        parse_mode: 'Markdown'
+      });
       console.log(`${now()} 📬 Telegram inviato su ${symbol}[${interval}] ➡️ Bot ${i + 1}`);
     } catch (e) {
       console.error(`${now()} ❌ Telegram error:`, e.message);
@@ -88,6 +93,7 @@ function formatPrice(p) {
   return p.toFixed(2);
 }
 
+// Calcolo box SENZA ultima candela
 function getRangeBox(klines, lookback = 20) {
   if (klines.length <= lookback + 1) return { high: NaN, low: NaN, size: NaN };
   const slice = klines.slice(-(lookback + 1), -1);
@@ -114,10 +120,12 @@ async function analyze(symbol, interval) {
   });
   if (macdVals.length < 2) return;
 
-  const lastMacd = macdVals.at(-1), prevMacd = macdVals.at(-2);
+  const lastMacd = macdVals.at(-1);
+  const prevMacd = macdVals.at(-2);
   const crossover =
     prevMacd.MACD < prevMacd.signal && lastMacd.MACD > lastMacd.signal ? 'bullish' :
-    prevMacd.MACD > prevMacd.signal && lastMacd.MACD < lastMacd.signal ? 'bearish' : null;
+    prevMacd.MACD > prevMacd.signal && lastMacd.MACD < lastMacd.signal ? 'bearish' :
+    null;
 
   const lastPrice = prices.at(-1);
   const rangeBox = getRangeBox(klines);
@@ -127,14 +135,8 @@ async function analyze(symbol, interval) {
     lastPrice > rangeBox.high ? 'up' :
     lastPrice < rangeBox.low ? 'down' : null;
 
-  // Aggiornamento MACD
-  if (crossover) {
-    state.macd = crossover;
-    state.notified = false;
-    console.log(`${now()} ⚡ ${symbol}[${interval}] MACD ${crossover} rilevato`);
-  }
+  if (crossover) state.macd = crossover;
 
-  // Breakout reale + cambio direzione
   if (
     breakout &&
     !state.breakoutDone &&
@@ -145,28 +147,25 @@ async function analyze(symbol, interval) {
     state.breakoutDone = true;
     state.lastDirection = direction;
     console.log(`${now()} 🚀 ${symbol}[${interval}] breakout ${breakout} → ${direction.toUpperCase()}`);
-    await sendSignal(symbol, interval, lastPrice, rangeBox, state.macd || (direction === 'long' ? 'bullish' : 'bearish'), ema12, ema26, ema50, ema200);
+    await sendSignal(symbol, interval, lastPrice, rangeBox, ema12, ema26, ema50, ema200, direction);
   }
 }
 
 // ──────────────── INVIO MESSAGGIO ────────────────
-async function sendSignal(symbol, interval, lastPrice, rangeBox, macd, ema12, ema26, ema50, ema200) {
-  const direction = macd === 'bullish' ? 'long' : 'short';
+async function sendSignal(symbol, interval, lastPrice, rangeBox, ema12, ema26, ema50, ema200, direction) {
+  const emoji = coinEmojis[symbol] || '🔸';
   const boxSize = isNaN(rangeBox.size) || rangeBox.size <= 0 ? lastPrice * 0.01 : rangeBox.size;
   const tp = direction === 'long' ? lastPrice + boxSize : lastPrice - boxSize;
   const sl = direction === 'long' ? lastPrice - boxSize * 0.5 : lastPrice + boxSize * 0.5;
 
-  const emoji = coinEmojis[symbol] || '🔸';
   const msg = `
-✋ ${emoji} *MACD (26/50) + BREAKOUT with range box* su *${symbol}* [${interval}]
+✋ ${emoji} *BREAKOUT Range Box* su *${symbol}* [${interval}]
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} | Prezzo: $${formatPrice(lastPrice)}
 
 📦 Box (ultime 20 candele)
 • High: $${formatPrice(rangeBox.high)}
 • Low:  $${formatPrice(rangeBox.low)}
 • Size: $${formatPrice(rangeBox.size)}
-
-${macd === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
 
 📈 EMA:
 • 12:  $${formatPrice(ema12)}
@@ -178,7 +177,7 @@ ${macd === 'bullish' ? '✅ Cross BULLISH' : '✅ Cross BEARISH'}
 🛑 SL: $${formatPrice(sl)}
 `.trim();
 
-  await sendTelegramMessage(msg);
+  await sendTelegramMessage(msg, symbol, interval);
 }
 
 // ──────────────── LOOP ────────────────
