@@ -70,20 +70,33 @@ async function sendTelegramMessage(msg, symbol, interval) {
 }
 
 // ──────────────── BYBIT DATA ────────────────
-async function fetchKlines(symbol, interval, limit = 300) {
-  try {
-    const res = await axios.get('https://api.bybit.com/v5/market/kline', {
-      params: { category: 'spot', symbol, interval: intervalMap[interval], limit },
-      timeout: 10000
-    });
-    return res.data.result.list.reverse().map(k => ({
-      time: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5]
-    }));
-  } catch (err) {
-    console.error(`${now()} ⚠️ fetchKlines ${symbol}[${interval}] error:`, err.message);
-    return [];
+async function fetchKlines(symbol, interval, limit = 300, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await axios.get('https://api.bybit.com/v5/market/kline', {
+        params: { category: 'spot', symbol, interval: intervalMap[interval], limit },
+        timeout: 20000 // ⏱️ aumentato da 10s a 20s
+      });
+
+      return res.data.result.list.reverse().map(k => ({
+        time: Number(k[0]),
+        open: +k[1],
+        high: +k[2],
+        low: +k[3],
+        close: +k[4],
+        volume: +k[5]
+      }));
+    } catch (err) {
+      console.warn(`${now()} ⚠️ fetchKlines ${symbol}[${interval}] tentativo ${attempt}/${retries} fallito: ${err.message}`);
+      if (attempt === retries) {
+        console.error(`${now()} ❌ fetchKlines ${symbol}[${interval}] errore definitivo dopo ${retries} tentativi.`);
+        return [];
+      }
+      await new Promise(r => setTimeout(r, 1500)); // 🕒 attesa tra i retry
+    }
   }
 }
+
 
 // ──────────────── HELPERS ────────────────
 function formatPrice(p) {
