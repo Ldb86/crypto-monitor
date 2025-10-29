@@ -93,7 +93,6 @@ function formatPrice(p) {
   return p.toFixed(2);
 }
 
-// Calcolo box SENZA ultima candela
 function getRangeBox(klines, lookback = 20) {
   if (klines.length <= lookback + 1) return { high: NaN, low: NaN, size: NaN };
   const slice = klines.slice(-(lookback + 1), -1);
@@ -127,6 +126,10 @@ async function analyze(symbol, interval) {
     prevMacd.MACD > prevMacd.signal && lastMacd.MACD < lastMacd.signal ? 'bearish' :
     null;
 
+  if (crossover) {
+    console.log(`${now()} ⚡ ${symbol}[${interval}] MACD ${crossover} rilevato`);
+  }
+
   const lastPrice = prices.at(-1);
   const rangeBox = getRangeBox(klines);
   const state = lastSignals[symbol][interval];
@@ -135,8 +138,15 @@ async function analyze(symbol, interval) {
     lastPrice > rangeBox.high ? 'up' :
     lastPrice < rangeBox.low ? 'down' : null;
 
+  // ✅ Reset del segnale se il prezzo rientra nel box
+  if (lastPrice <= rangeBox.high && lastPrice >= rangeBox.low) {
+    state.breakoutDone = false;
+  }
+
+  // Aggiorna MACD
   if (crossover) state.macd = crossover;
 
+  // Invio segnale su breakout reale
   if (
     breakout &&
     !state.breakoutDone &&
@@ -146,7 +156,9 @@ async function analyze(symbol, interval) {
     const direction = breakout === 'up' ? 'long' : 'short';
     state.breakoutDone = true;
     state.lastDirection = direction;
+
     console.log(`${now()} 🚀 ${symbol}[${interval}] breakout ${breakout} → ${direction.toUpperCase()}`);
+
     await sendSignal(symbol, interval, lastPrice, rangeBox, ema12, ema26, ema50, ema200, direction);
   }
 }
