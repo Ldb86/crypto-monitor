@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -14,20 +15,20 @@ const coins = [
   'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT',
   'ONDOUSDT', 'DOGEUSDT', 'PEPEUSDT',
   'DOTUSDT', 'ATOMUSDT', 'HBARUSDT',
-  'TIAUSDT', 'SHIBUSDT'
+  'TIAUSDT', 'SHIBUSDT', 'ICPUSDT', 'BCHUSDT','LINKUSDT', 'AVAXUSDT', 'TONUSDT'
 ];
 
 const coinEmojis = {
-  BTCUSDT: '🟠', ETHUSDT: '⚫', SOLUSDT: '🟢', BNBUSDT: '🟡', UNIUSDT: '🟣',
+  BTCUSDT: '🟠', ETHUSDT: '⚫', SOLUSDT: '🌞', BNBUSDT: '🌈', UNIUSDT: '🟣',
   XRPUSDT: '🔵', LTCUSDT: '⚪', AAVEUSDT: '🔷', SUIUSDT: '🔹', ENAUSDT: '🟪',
-  ONDOUSDT: '🟤', DOGEUSDT: '🐶', DOTUSDT: '⚪', ATOMUSDT: '🌌', HBARUSDT: '🔴',
-  TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸'
+  ONDOUSDT: '🟤', DOGEUSDT: '🐶', DOTUSDT: '⚪', ATOMUSDT: '🌌', HBARUSDT: '🚀',
+  TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸', ICPUSDT: '🌪', BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const intervals = ['15m', '30m', '1h', '2h', '4h', '12h', '1d', '1w'];
+const intervals = ['15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w'];
 const intervalMap = {
   '15m': '15', '30m': '30', '1h': '60', '2h': '120',
-  '4h': '240', '12h': '720', '1d': 'D', '1w': 'W'
+  '4h': '240', '6h': '360', '12h': '720', '1d': 'D', '1w': 'W'
 };
 
 // ──────────────── STATO ────────────────
