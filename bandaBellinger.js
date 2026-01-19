@@ -18,13 +18,15 @@ const coins = [
 const intervals = ['15m','30m','1h','4h','1d'];
 
 const intervalMap = {
-  '15m':'15','30m':'30','1h':'60','4h':'240','1d':'D'
+  '5m':'5','15m':'15','30m':'30','1h':'60','4h':'240','6h':'360','1d':'D'
 };
 
 const coinEmojis = {
-  BTCUSDT:'🟠', ETHUSDT:'⚫', SOLUSDT:'🌞', BNBUSDT:'🌈',
-  XRPUSDT:'🔵', DOGEUSDT:'🐶', LINKUSDT:'⚡️',
-  AVAXUSDT:'🔥', DOTUSDT:'⚪', ATOMUSDT:'🌌'
+  BTCUSDT: '🟠', ETHUSDT: '⚫', SOLUSDT: '🌞', BNBUSDT: '🌈', UNIUSDT: '🟣',
+  XRPUSDT: '🔵', LTCUSDT: '⚪', AAVEUSDT: '🔷', SUIUSDT: '🔹', ENAUSDT: '🟪',
+  ONDOUSDT: '🟤', DOGEUSDT: '🐶', DOTUSDT: '⚪', ATOMUSDT: '🌌', HBARUSDT: '🚀',
+  TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸', ICPUSDT: '🌪', BCHUSDT:'⭐️', LINKUSDT:'⚡️', 
+  AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
 /* ───────── STATE ───────── */
