@@ -4,7 +4,7 @@
   "main": "codeWithBoxRange.js",
    "scripts": {
     "start:codeWithBoxRange": "node codeWithBoxRange.js",
-    "start:bandaBellinger": "node bandaBellinger.js"
+    "start:triangle": "node triangle.js"
   },
   "keywords": [],
   "author": "",
