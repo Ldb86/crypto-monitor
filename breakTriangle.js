@@ -25,10 +25,10 @@ const coinEmojis = {
   BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const intervals = ['5m','15m','30m','1h','2h','4h','6h','12h','1d','1w'];
+const intervals = ['2h','4h','6h','12h','1d','1w'];
 const intervalMap = {
-  '5m':'5','15m':'15','30m':'30','1h':'60','2h':'120',
-  '4h':'240','6h':'360','12h':'720','1d':'D','1w':'W'
+  '2h':'120','4h':'240','6h':'360',
+  '12h':'720','1d':'D','1w':'W'
 };
 
 /* ───────── STATE ───────── */
@@ -148,47 +148,46 @@ async function analyze(symbol, interval) {
   const closes = klines.map(k => k.close);
   const lastClose = closes.at(-1);
 
-  const ema12 = EMA.calculate({ period:12, values:closes }).at(-1);
-  const ema50 = EMA.calculate({ period:50, values:closes }).at(-1);
-  const ema200 = EMA.calculate({ period:200, values:closes }).at(-1);
+  // EMA
+  const ema12Arr = EMA.calculate({ period: 12, values: closes });
+  const ema50 = EMA.calculate({ period: 50, values: closes }).at(-1);
+  const ema200 = EMA.calculate({ period: 200, values: closes }).at(-1);
+  if (ema12Arr.length < 2) return;
 
-  const bb = BollingerBands.calculate({
-    period:20,
-    values:closes,
-    stdDev:2
-  }).at(-1);
+  const prevEma12 = ema12Arr.at(-2);
+  const ema12 = ema12Arr.at(-1);
 
-  const bbMid = bb.middle;
+  // Bollinger Bands
+  const bbArr = BollingerBands.calculate({ period: 20, values: closes, stdDev: 2 });
+  if (bbArr.length < 2) return;
 
-  /* ─── CHECK VISIVO BB (PREZZO vs BB) ─── */
-  const bbCheck = lastClose > bbMid ? '✅' : '❌';
-  const emaCheck = bbCheck; // stesso check visivo (coerente)
+  const prevBbMid = bbArr.at(-2).middle;
+  const bbMid = bbArr.at(-1).middle;
 
-  /* ─── TRIANGOLO ─── */
+  // Check incrocio EMA12 x BB (solo info)
+  let emaBbCross = '❌'; // niente incrocio
+  if (prevEma12 < prevBbMid && ema12 > bbMid) emaBbCross = '🟢 LONG';
+  if (prevEma12 > prevBbMid && ema12 < bbMid) emaBbCross = '🔴 SHORT';
+
+  // Triangolo
   const triangle = calculateTriangle(klines, 14, 1);
   const direction = triangleBreakout(lastClose, triangle);
   if (!direction) return;
 
-  /* ─── FILTRO TREND ─── */
+  // Filtro trend EMA50/EMA200
   if (direction === 'long' && ema50 < ema200) return;
   if (direction === 'short' && ema50 > ema200) return;
 
-  /* ─── ANTI SPAM ─── */
+  // Anti-spam
   const s = state[symbol][interval];
   if (s.lastSignal === direction) return;
   s.lastSignal = direction;
 
-  /* ─── TP / SL ─── */
+  // Range box TP/SL
   const box = getRangeBox(klines);
   const size = box.size || lastClose * 0.01;
-
-  const tp = direction === 'long'
-    ? lastClose + size
-    : lastClose - size;
-
-  const sl = direction === 'long'
-    ? lastClose - size * 0.5
-    : lastClose + size * 0.5;
+  const tp = direction === 'long' ? lastClose + size : lastClose - size;
+  const sl = direction === 'long' ? lastClose - size * 0.5 : lastClose + size * 0.5;
 
   const emoji = coinEmojis[symbol] || '🔸';
 
@@ -203,18 +202,18 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(lastClose)
 • Low:  $${formatPrice(box.low)}
 
 📈 EMA
-• EMA12:  $${formatPrice(ema12)} ${emaCheck}
+• EMA12:  $${formatPrice(ema12)} (${emaBbCross})
 • EMA50:  $${formatPrice(ema50)}
 • EMA200: $${formatPrice(ema200)}
 
 📊 BB
-• Middle: $${formatPrice(bbMid)} ${bbCheck}
+• Middle: $${formatPrice(bbMid)}
 
 🎯 TP: $${formatPrice(tp)}
 🛑 SL: $${formatPrice(sl)}
 `.trim();
 
-  console.log(`${now()} 🔺 ${symbol}[${interval}] TRIANGLE ${direction.toUpperCase()}`);
+  console.log(`${now()} 🔺 ${symbol}[${interval}] TRIANGLE ${direction.toUpperCase()} | EMA12xBB: ${emaBbCross}`);
   await sendTelegram(msg);
 }
 
@@ -232,6 +231,4 @@ setInterval(checkMarket, 60 * 1000);
 
 /* ───────── SERVER ───────── */
 app.get('/', (_, res) => res.send('✅ Triangle Breakout bot ATTIVO'));
-app.listen(PORT, () =>
-  console.log(`🚀 Server avviato su porta ${PORT}`)
-);
+app.listen(PORT, () => console.log(`🚀 Server avviato su porta ${PORT}`));
