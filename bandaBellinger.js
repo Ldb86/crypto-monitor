@@ -1,3 +1,6 @@
+//banda di Bollinger + incrocio EMA5 x BB Middle
+//funzionante secondo il tester
+
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -27,9 +30,9 @@ const coinEmojis = {
   AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const intervals = ['5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w'];
+const intervals = ['30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w'];
 const intervalMap = {
-  '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120',
+  '30m': '30', '1h': '60', '2h': '120',
   '4h': '240', '6h': '360', '12h': '720', '1d': 'D', '1w': 'W'
 };
 
@@ -119,11 +122,11 @@ async function analyze(symbol, interval) {
   const prices = klines.map(k => k.close);
   const lastPrice = prices.at(-1);
 
-  // EMA 12
-  const ema12Arr = EMA.calculate({ period: 12, values: prices });
-  if (ema12Arr.length < 2) return;
-  const ema12 = ema12Arr.at(-1);
-  const prevEma12 = ema12Arr.at(-2);
+  // EMA 5
+  const ema5Arr = EMA.calculate({ period: 5, values: prices });
+  if (ema5Arr.length < 2) return;
+  const ema5 = ema5Arr.at(-1);
+  const prevEma5 = ema5Arr.at(-2);
 
   // EMA 50 e 200
   const ema50 = EMA.calculate({ period: 50, values: prices }).at(-1);
@@ -139,13 +142,13 @@ async function analyze(symbol, interval) {
   const bbMid = bbArr.at(-1).middle;
   const prevBbMid = bbArr.at(-2).middle;
 
-  // Range Box (anche se non lo useremo per trigger)
+  // Range Box
   const box = getRangeBox(klines);
 
-  // INCROCIO EMA12 ↔ BB Middle
+  // INCROCIO EMA5 ↔ BB Middle
   const cross =
-    prevEma12 < prevBbMid && ema12 > bbMid ? 'long' :
-    prevEma12 > prevBbMid && ema12 < bbMid ? 'short' :
+    prevEma5 < prevBbMid && ema5 > bbMid ? 'long' :
+    prevEma5 > prevBbMid && ema5 < bbMid ? 'short' :
     null;
 
   if (!cross) return;
@@ -155,7 +158,7 @@ async function analyze(symbol, interval) {
 
   s.lastCross = cross;
 
-  console.log(`${now()} ⚡ ${symbol}[${interval}] EMA12 x BB ${cross.toUpperCase()}`);
+  console.log(`${now()} ⚡ ${symbol}[${interval}] EMA5 x BB ${cross.toUpperCase()}`);
 
   // Calcolo TP/SL basato sul box
   const boxSize = box.size || lastPrice * 0.01;
@@ -168,7 +171,7 @@ async function analyze(symbol, interval) {
     cross,
     lastPrice,
     box,
-    ema12,
+    ema5,
     ema50,
     ema200,
     bbMid,
@@ -178,11 +181,11 @@ async function analyze(symbol, interval) {
 }
 
 /* ───────── INVIO SEGNALE ───────── */
-async function sendSignal(symbol, interval, direction, price, box, ema12, ema50, ema200, bbMid, tp, sl) {
+async function sendSignal(symbol, interval, direction, price, box, ema5, ema50, ema200, bbMid, tp, sl) {
   const emoji = coinEmojis[symbol] || '🔸';
 
   const msg = `
-${emoji} *BREAKOUT + EMA12 x BB*
+${emoji} *BREAKOUT + EMA5 x BB*
 *${symbol}* [${interval}]
 
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(price)}
@@ -192,8 +195,8 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(price)}
 • Low:  $${formatPrice(box.low)}
 
 📈 EMA
-• EMA12:  $${formatPrice(ema12)}
-• EMA50:  $${formatPrice(ema50)}
+• EMA5:   $${formatPrice(ema5)}
+• EMA50:  $${formatPrice(ema50)} 
 • EMA200: $${formatPrice(ema200)}
 
 📊 BB Middle: $${formatPrice(bbMid)}
@@ -218,5 +221,5 @@ async function checkMarket() {
 setInterval(checkMarket, 60 * 1000);
 
 /* ───────── SERVER ───────── */
-app.get('/', (_, res) => res.send('✅ Breakout + EMA12 x BB bot ATTIVO'));
+app.get('/', (_, res) => res.send('✅ Breakout + EMA5 x BB bot ATTIVO'));
 app.listen(PORT, () => console.log(`🚀 Server avviato su porta ${PORT}`));
