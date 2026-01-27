@@ -4,7 +4,7 @@
   "main": "codeWithBoxRange.js",
    "scripts": {
     "start:codeWithBoxRange": "node codeWithBoxRange.js",
-    "start:triangle": "node triangle.js"
+    "start:triangle": "node breakTriangle.js"
   },
   "keywords": [],
   "author": "",
