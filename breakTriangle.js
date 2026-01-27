@@ -35,7 +35,7 @@ const intervalMap = {
 const state = {};
 coins.forEach(c => {
   state[c] = {};
-  intervals.forEach(tf => state[c][tf] = { lastCross: null });
+  intervals.forEach(tf => state[c][tf] = { lastSignal: null });
 });
 
 /* ───────── HELPERS ───────── */
@@ -135,7 +135,9 @@ async function fetchKlines(symbol, interval, limit = 300) {
     return r.data.result.list.reverse().map(k => ({
       open:+k[1], high:+k[2], low:+k[3], close:+k[4]
     }));
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 /* ───────── ANALYSIS ───────── */
@@ -146,42 +148,47 @@ async function analyze(symbol, interval) {
   const closes = klines.map(k => k.close);
   const lastClose = closes.at(-1);
 
-  const ema12Arr = EMA.calculate({ period:12, values:closes });
-  const ema50Arr = EMA.calculate({ period:50, values:closes });
-  const ema200Arr = EMA.calculate({ period:200, values:closes });
+  const ema12 = EMA.calculate({ period:12, values:closes }).at(-1);
+  const ema50 = EMA.calculate({ period:50, values:closes }).at(-1);
+  const ema200 = EMA.calculate({ period:200, values:closes }).at(-1);
 
-  const ema12 = ema12Arr.at(-1);
-  const prevEma12 = ema12Arr.at(-2);
-  const ema50 = ema50Arr.at(-1);
-  const ema200 = ema200Arr.at(-1);
+  const bb = BollingerBands.calculate({
+    period:20,
+    values:closes,
+    stdDev:2
+  }).at(-1);
 
-  const bbArr = BollingerBands.calculate({ period:20, values:closes, stdDev:2 });
-  const bbMid = bbArr.at(-1).middle;
-  const prevBbMid = bbArr.at(-2).middle;
+  const bbMid = bb.middle;
 
-const emaAboveBb = ema12 > bbMid;
-const emaBelowBb = ema12 < bbMid;
+  /* ─── CHECK VISIVO BB (PREZZO vs BB) ─── */
+  const bbCheck = lastClose > bbMid ? '✅' : '❌';
+  const emaCheck = bbCheck; // stesso check visivo (coerente)
 
-const emaCheck = emaAboveBb ? '✅' : '❌';
-const bbCheck  = emaAboveBb ? '✅' : '❌';
-
-
+  /* ─── TRIANGOLO ─── */
   const triangle = calculateTriangle(klines, 14, 1);
   const direction = triangleBreakout(lastClose, triangle);
   if (!direction) return;
 
+  /* ─── FILTRO TREND ─── */
   if (direction === 'long' && ema50 < ema200) return;
   if (direction === 'short' && ema50 > ema200) return;
 
+  /* ─── ANTI SPAM ─── */
   const s = state[symbol][interval];
-  if (s.lastCross === direction) return;
-  s.lastCross = direction;
+  if (s.lastSignal === direction) return;
+  s.lastSignal = direction;
 
+  /* ─── TP / SL ─── */
   const box = getRangeBox(klines);
   const size = box.size || lastClose * 0.01;
 
-  const tp = direction === 'long' ? lastClose + size : lastClose - size;
-  const sl = direction === 'long' ? lastClose - size * 0.5 : lastClose + size * 0.5;
+  const tp = direction === 'long'
+    ? lastClose + size
+    : lastClose - size;
+
+  const sl = direction === 'long'
+    ? lastClose - size * 0.5
+    : lastClose + size * 0.5;
 
   const emoji = coinEmojis[symbol] || '🔸';
 
@@ -207,6 +214,7 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(lastClose)
 🛑 SL: $${formatPrice(sl)}
 `.trim();
 
+  console.log(`${now()} 🔺 ${symbol}[${interval}] TRIANGLE ${direction.toUpperCase()}`);
   await sendTelegram(msg);
 }
 
@@ -224,4 +232,6 @@ setInterval(checkMarket, 60 * 1000);
 
 /* ───────── SERVER ───────── */
 app.get('/', (_, res) => res.send('✅ Triangle Breakout bot ATTIVO'));
-app.listen(PORT, () => console.log(`🚀 Server avviato su porta ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Server avviato su porta ${PORT}`)
+);
