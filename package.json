@@ -4,7 +4,8 @@
   "main": "breakTriangle.js",
    "scripts": {
     "start:codeWithBoxRange": "node codeWithBoxRange.js",
-    "start:triangle": "node breakTriangle.js"
+    "start:triangle": "node breakTriangle.js",
+    "start:bandaBellinger": "node bandaBellinger.js"
   },
   "keywords": [],
   "author": "",
