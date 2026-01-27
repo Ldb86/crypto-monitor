@@ -159,12 +159,12 @@ async function analyze(symbol, interval) {
   const bbMid = bbArr.at(-1).middle;
   const prevBbMid = bbArr.at(-2).middle;
 
-  const emaBbCross =
-    prevEma12 < prevBbMid && ema12 > bbMid ||
-    prevEma12 > prevBbMid && ema12 < bbMid;
+const emaAboveBb = ema12 > bbMid;
+const emaBelowBb = ema12 < bbMid;
 
-  const emaCheck = emaBbCross ? '✅' : '❌';
-  const bbCheck  = emaBbCross ? '✅' : '❌';
+const emaCheck = emaAboveBb ? '✅' : '❌';
+const bbCheck  = emaAboveBb ? '✅' : '❌';
+
 
   const triangle = calculateTriangle(klines, 14, 1);
   const direction = triangleBreakout(lastClose, triangle);
