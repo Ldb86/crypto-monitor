@@ -1,5 +1,5 @@
-//banda di Bollinger + incrocio EMA5 x BB Middle
-//funzionante secondo il tester
+// Banda di Bollinger + incrocio EMA5 x BB Middle
+// VERSIONE LIVE CORRETTA (no repaint, candle close)
 
 require('dotenv').config();
 const express = require('express');
@@ -14,40 +14,35 @@ const TELEGRAM_TOKENS = process.env.BOT_TOKENS.split(',');
 const TELEGRAM_CHAT_IDS = process.env.CHAT_IDS.split(',');
 
 const coins = [
-  'BTCUSDT', 'ETHUSDT', 'SOLUSDT',
-  'BNBUSDT', 'UNIUSDT', 'XRPUSDT',
-  'LTCUSDT', 'AAVEUSDT', 'SUIUSDT', 'ENAUSDT',
-  'ONDOUSDT', 'DOGEUSDT', 'PEPEUSDT',
-  'DOTUSDT', 'ATOMUSDT', 'HBARUSDT',
-  'TIAUSDT', 'SHIBUSDT', 'ICPUSDT', 'BCHUSDT','LINKUSDT', 'AVAXUSDT', 'TONUSDT'
+  'BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','UNIUSDT','XRPUSDT',
+  'LTCUSDT','AAVEUSDT','SUIUSDT','ENAUSDT','ONDOUSDT','DOGEUSDT',
+  'PEPEUSDT','DOTUSDT','ATOMUSDT','HBARUSDT','TIAUSDT','SHIBUSDT',
+  'ICPUSDT','BCHUSDT','LINKUSDT','AVAXUSDT','TONUSDT'
 ];
 
 const coinEmojis = {
-  BTCUSDT: '🟠', ETHUSDT: '⚫', SOLUSDT: '🌞', BNBUSDT: '🌈', UNIUSDT: '🟣',
-  XRPUSDT: '🔵', LTCUSDT: '⚪', AAVEUSDT: '🔷', SUIUSDT: '🔹', ENAUSDT: '🟪',
-  ONDOUSDT: '🟤', DOGEUSDT: '🐶', DOTUSDT: '⚪', ATOMUSDT: '🌌', HBARUSDT: '🚀',
-  TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸', ICPUSDT: '🌪', BCHUSDT:'⭐️', LINKUSDT:'⚡️', 
-  AVAXUSDT:'🔥', TONUSDT:'🌦'
+  BTCUSDT:'🟠', ETHUSDT:'⚫', SOLUSDT:'🌞', BNBUSDT:'🌈', UNIUSDT:'🟣',
+  XRPUSDT:'🔵', LTCUSDT:'⚪', AAVEUSDT:'🔷', SUIUSDT:'🔹', ENAUSDT:'🟪',
+  ONDOUSDT:'🟤', DOGEUSDT:'🐶', DOTUSDT:'⚪', ATOMUSDT:'🌌', HBARUSDT:'🚀',
+  TIAUSDT:'🟡', SHIBUSDT:'🐕', PEPEUSDT:'🐸', ICPUSDT:'🌪',
+  BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const intervals = ['30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w'];
+const intervals = ['30m','1h','2h','4h','6h','12h','1d','1w'];
 const intervalMap = {
-  '30m': '30', '1h': '60', '2h': '120',
-  '4h': '240', '6h': '360', '12h': '720', '1d': 'D', '1w': 'W'
+  '30m':'30','1h':'60','2h':'120','4h':'240',
+  '6h':'360','12h':'720','1d':'D','1w':'W'
 };
 
 /* ───────── STATE ───────── */
 const state = {};
 coins.forEach(c => {
   state[c] = {};
-  intervals.forEach(tf => {
-    state[c][tf] = { lastCross: null };
-  });
+  intervals.forEach(tf => state[c][tf] = { lastCross: null });
 });
 
 /* ───────── HELPERS ───────── */
 const now = () => `[${new Date().toLocaleTimeString()}]`;
-
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const formatPrice = p => {
@@ -74,11 +69,7 @@ async function sendTelegram(msg, symbol, interval) {
     try {
       await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_TOKENS[i]}/sendMessage`,
-        {
-          chat_id: TELEGRAM_CHAT_IDS[i],
-          text: msg,
-          parse_mode: 'Markdown'
-        }
+        { chat_id: TELEGRAM_CHAT_IDS[i], text: msg, parse_mode: 'Markdown' }
       );
       console.log(`${now()} 📬 Telegram ${symbol}[${interval}]`);
     } catch (err) {
@@ -90,18 +81,15 @@ async function sendTelegram(msg, symbol, interval) {
 /* ───────── BYBIT DATA ───────── */
 async function fetchKlines(symbol, interval, limit = 300) {
   try {
-    const res = await axios.get(
-      'https://api.bybit.com/v5/market/kline',
-      {
-        params: {
-          category: 'spot',
-          symbol,
-          interval: intervalMap[interval],
-          limit
-        },
-        timeout: 20000
-      }
-    );
+    const res = await axios.get('https://api.bybit.com/v5/market/kline', {
+      params: {
+        category: 'spot',
+        symbol,
+        interval: intervalMap[interval],
+        limit
+      },
+      timeout: 20000
+    });
 
     return res.data.result.list.reverse().map(k => ({
       open: +k[1],
@@ -117,66 +105,65 @@ async function fetchKlines(symbol, interval, limit = 300) {
 /* ───────── ANALYSIS ───────── */
 async function analyze(symbol, interval) {
   const klines = await fetchKlines(symbol, interval);
-  if (klines.length < 60) return;
+  if (klines.length < 80) return;
 
-  const prices = klines.map(k => k.close);
+  // 🔒 SOLO CANDELE CHIUSE
+  const closedKlines = klines.slice(0, -1);
+  const prices = closedKlines.map(k => k.close);
   const lastPrice = prices.at(-1);
 
   // EMA 5
   const ema5Arr = EMA.calculate({ period: 5, values: prices });
-  if (ema5Arr.length < 2) return;
-  const ema5 = ema5Arr.at(-1);
-  const prevEma5 = ema5Arr.at(-2);
+  if (ema5Arr.length < 4) return;
 
-  // EMA 50 e 200
-  const ema50 = EMA.calculate({ period: 50, values: prices }).at(-1);
-  const ema200 = EMA.calculate({ period: 200, values: prices }).at(-1);
+  const ema5     = ema5Arr.at(-2);
+  const prevEma5 = ema5Arr.at(-3);
 
-  // Bollinger Middle
+  // EMA 50 / 200
+  const ema50 = EMA.calculate({ period: 50, values: prices }).at(-2);
+  const ema200 = EMA.calculate({ period: 200, values: prices }).at(-2);
+
+  // Bollinger
   const bbArr = BollingerBands.calculate({
     period: 20,
     values: prices,
     stdDev: 2
   });
-  if (bbArr.length < 2) return;
-  const bbMid = bbArr.at(-1).middle;
-  const prevBbMid = bbArr.at(-2).middle;
+  if (bbArr.length < 4) return;
 
-  // Range Box
-  const box = getRangeBox(klines);
+  const bbMid     = bbArr.at(-2).middle;
+  const prevBbMid = bbArr.at(-3).middle;
 
-  // INCROCIO EMA5 ↔ BB Middle
+  const box = getRangeBox(closedKlines);
+
+  // INCROCIO CONFERMATO
   const cross =
     prevEma5 < prevBbMid && ema5 > bbMid ? 'long' :
     prevEma5 > prevBbMid && ema5 < bbMid ? 'short' :
     null;
 
-  if (!cross) return;
-
   const s = state[symbol][interval];
-  if (s.lastCross === cross) return; // evita notifiche duplicate
 
+  // reset se torna neutro
+  if (
+    (ema5 > bbMid && prevEma5 > prevBbMid) ||
+    (ema5 < bbMid && prevEma5 < prevBbMid)
+  ) {
+    s.lastCross = null;
+  }
+
+  if (!cross || s.lastCross === cross) return;
   s.lastCross = cross;
 
   console.log(`${now()} ⚡ ${symbol}[${interval}] EMA5 x BB ${cross.toUpperCase()}`);
 
-  // Calcolo TP/SL basato sul box
   const boxSize = box.size || lastPrice * 0.01;
   const tp = cross === 'long' ? lastPrice + boxSize : lastPrice - boxSize;
   const sl = cross === 'long' ? lastPrice - boxSize * 0.5 : lastPrice + boxSize * 0.5;
 
   await sendSignal(
-    symbol,
-    interval,
-    cross,
-    lastPrice,
-    box,
-    ema5,
-    ema50,
-    ema200,
-    bbMid,
-    tp,
-    sl
+    symbol, interval, cross, lastPrice,
+    box, ema5, ema50, ema200, bbMid, tp, sl
   );
 }
 
@@ -196,7 +183,7 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(price)}
 
 📈 EMA
 • EMA5:   $${formatPrice(ema5)}
-• EMA50:  $${formatPrice(ema50)} 
+• EMA50:  $${formatPrice(ema50)}
 • EMA200: $${formatPrice(ema200)}
 
 📊 BB Middle: $${formatPrice(bbMid)}
