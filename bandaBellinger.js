@@ -53,7 +53,7 @@ const formatPrice = p => {
 };
 
 function getRangeBox(klines, lookback = 20) {
-  const slice = klines.slice(-(lookback + 1), -1);
+  const slice = klines.slice(-(lookback + 2), -2); // SOLO CANDELE CHIUSE
   const highs = slice.map(k => k.high);
   const lows = slice.map(k => k.low);
   return {
@@ -102,60 +102,49 @@ async function fetchKlines(symbol, interval, limit = 300) {
   }
 }
 
-/* ───────── ANALYSIS ───────── */
+/* ───────── ANALYSIS (LIVE CROSS) ───────── */
 async function analyze(symbol, interval) {
   const klines = await fetchKlines(symbol, interval);
   if (klines.length < 80) return;
 
-  // 🔒 SOLO CANDELE CHIUSE
-  const closedKlines = klines.slice(0, -1);
-  const prices = closedKlines.map(k => k.close);
-  const lastPrice = prices.at(-1);
+  const prices = klines.map(k => k.close);
 
   // EMA 5
   const ema5Arr = EMA.calculate({ period: 5, values: prices });
-  if (ema5Arr.length < 4) return;
+  if (ema5Arr.length < 3) return;
 
-  const ema5     = ema5Arr.at(-2);
-  const prevEma5 = ema5Arr.at(-3);
+  const ema5_prev = ema5Arr.at(-2); // candela chiusa
+  const ema5_now  = ema5Arr.at(-1); // candela live
 
-  // EMA 50 / 200
-  const ema50 = EMA.calculate({ period: 50, values: prices }).at(-2);
-  const ema200 = EMA.calculate({ period: 200, values: prices }).at(-2);
+  // EMA 50 / 200 (live)
+  const ema50 = EMA.calculate({ period: 50, values: prices }).at(-1);
+  const ema200 = EMA.calculate({ period: 200, values: prices }).at(-1);
 
-  // Bollinger
+  // Bollinger live
   const bbArr = BollingerBands.calculate({
     period: 20,
     values: prices,
     stdDev: 2
   });
-  if (bbArr.length < 4) return;
+  if (bbArr.length < 3) return;
 
-  const bbMid     = bbArr.at(-2).middle;
-  const prevBbMid = bbArr.at(-3).middle;
+  const bb_prev = bbArr.at(-2).middle;
+  const bb_now  = bbArr.at(-1).middle;
 
-  const box = getRangeBox(closedKlines);
+  const lastPrice = prices.at(-1);
+  const box = getRangeBox(klines);
 
-  // INCROCIO CONFERMATO
+  // 🔥 INCROCIO LIVE
   const cross =
-    prevEma5 < prevBbMid && ema5 > bbMid ? 'long' :
-    prevEma5 > prevBbMid && ema5 < bbMid ? 'short' :
+    ema5_prev < bb_prev && ema5_now > bb_now ? 'long' :
+    ema5_prev > bb_prev && ema5_now < bb_now ? 'short' :
     null;
 
   const s = state[symbol][interval];
-
-  // reset se torna neutro
-  if (
-    (ema5 > bbMid && prevEma5 > prevBbMid) ||
-    (ema5 < bbMid && prevEma5 < prevBbMid)
-  ) {
-    s.lastCross = null;
-  }
-
   if (!cross || s.lastCross === cross) return;
   s.lastCross = cross;
 
-  console.log(`${now()} ⚡ ${symbol}[${interval}] EMA5 x BB ${cross.toUpperCase()}`);
+  console.log(`${now()} ⚡ LIVE CROSS ${symbol}[${interval}] ${cross.toUpperCase()}`);
 
   const boxSize = box.size || lastPrice * 0.01;
   const tp = cross === 'long' ? lastPrice + boxSize : lastPrice - boxSize;
@@ -163,16 +152,16 @@ async function analyze(symbol, interval) {
 
   await sendSignal(
     symbol, interval, cross, lastPrice,
-    box, ema5, ema50, ema200, bbMid, tp, sl
+    box, ema5_now, ema50, ema200, bb_now, tp, sl
   );
 }
 
-/* ───────── INVIO SEGNALE ───────── */
+/* ───────── SIGNAL ───────── */
 async function sendSignal(symbol, interval, direction, price, box, ema5, ema50, ema200, bbMid, tp, sl) {
   const emoji = coinEmojis[symbol] || '🔸';
 
   const msg = `
-${emoji} *BREAKOUT + EMA5 x BB*
+${emoji} *LIVE EMA5 x BB*
 *${symbol}* [${interval}]
 
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(price)}
@@ -200,7 +189,7 @@ async function checkMarket() {
   for (const c of coins) {
     for (const tf of intervals) {
       await analyze(c, tf);
-      await sleep(350);
+      await sleep(300);
     }
   }
 }
@@ -208,5 +197,5 @@ async function checkMarket() {
 setInterval(checkMarket, 60 * 1000);
 
 /* ───────── SERVER ───────── */
-app.get('/', (_, res) => res.send('✅ Breakout + EMA5 x BB bot ATTIVO'));
+app.get('/', (_, res) => res.send('✅ LIVE EMA5 x BB bot ATTIVO'));
 app.listen(PORT, () => console.log(`🚀 Server avviato su porta ${PORT}`));
