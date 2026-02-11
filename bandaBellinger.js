@@ -161,7 +161,7 @@ async function sendSignal(symbol, interval, direction, price, box, ema5, ema50, 
   const emoji = coinEmojis[symbol] || '🔸';
 
   const msg = `
-${emoji} *LIVE EMA5 x BB*
+${emoji} *BREAKOUT + EMA5 x BB*
 *${symbol}* [${interval}]
 
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(price)}
@@ -197,5 +197,5 @@ async function checkMarket() {
 setInterval(checkMarket, 60 * 1000);
 
 /* ───────── SERVER ───────── */
-app.get('/', (_, res) => res.send('✅ LIVE EMA5 x BB bot ATTIVO'));
+app.get('/', (_, res) => res.send('✅ Breakout + EMA5 x BB bot ATTIVO'));
 app.listen(PORT, () => console.log(`🚀 Server avviato su porta ${PORT}`));
