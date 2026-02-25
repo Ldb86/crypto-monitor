@@ -1,3 +1,5 @@
+//rottura del triangolo con check su BB e EMA12
+
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
