@@ -1,3 +1,5 @@
+//qui abbiamo solo la rottura del rangeBox che funziona con TP/SL corretti
+//sulle ultime 20 candele
 
 require('dotenv').config();
 const express = require('express');
@@ -22,7 +24,8 @@ const coinEmojis = {
   BTCUSDT: '🟠', ETHUSDT: '⚫', SOLUSDT: '🌞', BNBUSDT: '🌈', UNIUSDT: '🟣',
   XRPUSDT: '🔵', LTCUSDT: '⚪', AAVEUSDT: '🔷', SUIUSDT: '🔹', ENAUSDT: '🟪',
   ONDOUSDT: '🟤', DOGEUSDT: '🐶', DOTUSDT: '⚪', ATOMUSDT: '🌌', HBARUSDT: '🚀',
-  TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸', ICPUSDT: '🌪', BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
+  TIAUSDT: '🟡', SHIBUSDT: '🐕', PEPEUSDT: '🐸', ICPUSDT: '🌪', BCHUSDT:'⭐️', LINKUSDT:'⚡️', 
+  AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
 const intervals = ['15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w'];

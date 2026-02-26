@@ -1,10 +1,9 @@
 {
   "name": "crypto-monitor",
   "version": "1.0.0",
-  "main": "breakTriangle.js",
+  "main": "",
    "scripts": {
-    "start:codeWithBoxRange": "node codeWithBoxRange.js",
-    "start:triangle": "node breakTriangle.js",
+    "start:BR": "node BR.js",
     "start:bandaBellinger": "node bandaBellinger.js"
   },
   "keywords": [],
