@@ -1,0 +1,21 @@
+{
+  "name": "crypto-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["utils"],
+  "scripts": {
+    "start:BR": "node BR.js",
+    "start:bandaBellinger": "node bandaBellinger.js",
+    "start:breakTriangle": "node breakTriangle.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Crypto monitor workspace",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "technicalindicators": "^3.1.0"
+  }
+}
