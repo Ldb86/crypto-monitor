@@ -1,10 +1,12 @@
 {
   "name": "crypto-monitor",
   "version": "1.0.0",
-  "main": "",
+  "private": true,
+  "workspaces": ["utils"],
    "scripts": {
     "start:BR": "node BR.js",
-    "start:bandaBellinger": "node bandaBellinger.js"
+    "start:bandaBellinger": "node bandaBellinger.js",
+    "start:breakTriangle": "node breakTriangle.js"
   },
   "keywords": [],
   "author": "",
