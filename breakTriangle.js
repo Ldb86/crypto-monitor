@@ -27,9 +27,11 @@ const coinEmojis = {
   BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const intervals = ['2h','4h','6h','12h','1d','1w'];
+const baseIntervals = ['2h','4h','6h','12h','1d','1w'];
+const specialCoins = {BTCUSDT:'🟠', ETHUSDT:'⚫', AAVEUSDT:'🔷' };
+const specialIntervals = ['30m', ...baseIntervals];
 const intervalMap = {
-  '2h':'120','4h':'240','6h':'360',
+  '30m':'30', '2h':'120','4h':'240','6h':'360',
   '12h':'720','1d':'D','1w':'W'
 };
 
@@ -37,7 +39,8 @@ const intervalMap = {
 const state = {};
 coins.forEach(c => {
   state[c] = {};
-  intervals.forEach(tf => state[c][tf] = { lastSignal: null });
+  const tfs = specialCoins.includes(c) ? specialIntervals : baseIntervals;
+  tfs.forEach(tf => state[c][tf] = { lastSignal: null });
 });
 
 /* ───────── HELPERS ───────── */
@@ -222,7 +225,8 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(lastClose)
 /* ───────── LOOP ───────── */
 async function checkMarket() {
   for (const c of coins) {
-    for (const tf of intervals) {
+    const tfs = specialCoins.includes(c) ? specialIntervals : baseIntervals;
+    for (const tf of tfs) {
       await analyze(c, tf);
       await sleep(350);
     }
