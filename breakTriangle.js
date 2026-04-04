@@ -33,7 +33,7 @@ const coinEmojis = {
   BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const baseIntervals = ['2h','4h','6h','12h','1d','1w'];
+const baseIntervals = ['30m','2h','4h','6h','12h','1d','1w'];
 const specialCoins = { BTCUSDT:true, ETHUSDT:true, AAVEUSDT:true };
 const specialIntervals = ['30m', ...baseIntervals];
 
