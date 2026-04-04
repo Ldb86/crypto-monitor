@@ -1,7 +1,6 @@
-//crypto-monitor => production = node BR.js
-//new crypto => prod = node breakTriangle.js
-//upgrade_crypto => prod_2 = node bandaBellinger.js
-
+//crypto-monitor => production = node BR.js (3 mouth ago) - new message
+//new crypto => prod = node breakTriangle.js (26.02.2026) - change package.jason_2
+//upgrade_crypto => prod_2 = node bandaBellinger.js (2 weeks ago) - fix EMA5 when ther's real cross
 
 
 
