@@ -18,6 +18,7 @@ if (TELEGRAM_TOKENS.length !== TELEGRAM_CHAT_IDS.length) {
   throw new Error('❌ BOT_TOKENS e CHAT_IDS devono avere lo stesso numero di elementi');
 }
 
+/* ───────── COINS ───────── */
 const coins = [
   'BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','UNIUSDT','XRPUSDT','LTCUSDT',
   'AAVEUSDT','SUIUSDT','ENAUSDT','ONDOUSDT','DOGEUSDT','PEPEUSDT',
@@ -33,9 +34,9 @@ const coinEmojis = {
   BCHUSDT:'⭐️', LINKUSDT:'⚡️', AVAXUSDT:'🔥', TONUSDT:'🌦'
 };
 
-const baseIntervals = ['30m','2h','4h','6h','12h','1d','1w'];
-const specialCoins = { BTCUSDT:true, ETHUSDT:true, AAVEUSDT:true };
-const specialIntervals = ['30m', ...baseIntervals];
+/* ───────── TIMEFRAMES ───────── */
+/* 30m su TUTTE le coin */
+const intervals = ['30m', '2h', '4h', '6h', '12h', '1d', '1w'];
 
 const intervalMap = {
   '30m':'30',
@@ -48,26 +49,37 @@ const intervalMap = {
 };
 
 /* ───────── PARAMETRI BOT ───────── */
-const FETCH_LIMIT = 80;          // scarica 80 candele
-const PATTERN_WINDOW = 25;       // usa ultime 25 candele chiuse
-const TRIANGLE_LENGTH = 6;       // pivot più reattivo (meglio di 14)
+const FETCH_LIMIT = 260;          // abbastanza per EMA200
+const PATTERN_WINDOW = 25;        // ultime 25 candele chiuse
+const TRIANGLE_LENGTH = 5;        // più reattivo
 const TRIANGLE_MULT = 1;
-const BREAKOUT_BUFFER = 0.0015;  // 0.15% anti fake breakout
-const LOOP_EVERY_MS = 60 * 1000; // check ogni 60 sec
-const REQUEST_DELAY_MS = 300;    // delay tra richieste
-const USE_TREND_FILTER = true;   // filtro EMA50/EMA200
-const REQUIRE_EMA12_BB_CONFIRM = false; // se true, il breakout deve essere coerente con EMA12 vs BB mid
+const BREAKOUT_BUFFER = 0.0008;   // 0.08% anti fake breakout (meno rigido)
+const LIVE_BREAKOUT_BUFFER = 0.0005; // 0.05% per pre-alert live
+const LOOP_EVERY_MS = 60 * 1000;  // check ogni 60 sec
+const REQUEST_DELAY_MS = 250;     // delay tra richieste
+
+/* ───────── FILTRI ───────── */
+const USE_TREND_FILTER = false;   // DISATTIVO per non perdere 30m breakout
+const REQUIRE_EMA12_BB_CONFIRM = false;
+
+/* ───────── MODALITÀ ALERT ───────── */
+/*
+  SEND_LIVE_PREALERT = true  => manda pre-alert appena il prezzo rompe live
+  SEND_CONFIRMED_ALERT = true => manda conferma quando chiude la candela
+*/
+const SEND_LIVE_PREALERT = false;
+const SEND_CONFIRMED_ALERT = true;
 
 /* ───────── STATE ───────── */
 const state = {};
 for (const c of coins) {
   state[c] = {};
-  const tfs = specialCoins[c] ? specialIntervals : baseIntervals;
-  for (const tf of tfs) {
+  for (const tf of intervals) {
     state[c][tf] = {
-      lastSignal: null,
-      lastBarTime: null,
-      lastAlertKey: null
+      lastClosedBarTime: null,
+      lastConfirmedAlertKey: null,
+      lastLiveAlertKey: null,
+      lastSignal: null
     };
   }
 }
@@ -101,7 +113,7 @@ function getRangeBox(klines, lookback = 20) {
   };
 }
 
-/* ───────── TRIANGOLO (stile Lux-like, ma più reattivo) ───────── */
+/* ───────── TRIANGOLO ───────── */
 function pivotHigh(high, len, i) {
   if (i < len || i + len >= high.length) return null;
   const c = high[i];
@@ -159,7 +171,7 @@ function calculateTriangle(klines, length = TRIANGLE_LENGTH, mult = TRIANGLE_MUL
   return { upper, lower };
 }
 
-/* ───────── FILTRO COMPRESSIONE (triangolo più “vero”) ───────── */
+/* ───────── COMPRESSIONE ───────── */
 function hasCompression(klines) {
   if (klines.length < 20) return false;
 
@@ -169,21 +181,31 @@ function hasCompression(klines) {
   const firstRange = Math.max(...first.map(k => k.high)) - Math.min(...first.map(k => k.low));
   const lastRange = Math.max(...last.map(k => k.high)) - Math.min(...last.map(k => k.low));
 
-  return lastRange < firstRange * 0.9; // almeno 10% di compressione
+  // meno rigido di prima (3% basta)
+  return lastRange < firstRange * 0.97;
 }
 
-/* ───────── BREAKOUT REALE SU CANDELA CHIUSA ───────── */
-function triangleBreakout(prevClose, lastClose, triangle, bufferPct = BREAKOUT_BUFFER) {
+/* ───────── BREAKOUT ───────── */
+function triangleBreakoutClosed(prevClose, lastClose, triangle, bufferPct = BREAKOUT_BUFFER) {
   if (triangle.upper == null || triangle.lower == null) return null;
 
   const upperBreak = triangle.upper * (1 + bufferPct);
   const lowerBreak = triangle.lower * (1 - bufferPct);
 
-  // LONG: candela precedente non rotta, ultima candela chiusa rompe sopra
   if (prevClose <= triangle.upper && lastClose > upperBreak) return 'long';
-
-  // SHORT: candela precedente non rotta, ultima candela chiusa rompe sotto
   if (prevClose >= triangle.lower && lastClose < lowerBreak) return 'short';
+
+  return null;
+}
+
+function triangleBreakoutLive(currentPrice, triangle, bufferPct = LIVE_BREAKOUT_BUFFER) {
+  if (triangle.upper == null || triangle.lower == null || currentPrice == null || isNaN(currentPrice)) return null;
+
+  const upperBreak = triangle.upper * (1 + bufferPct);
+  const lowerBreak = triangle.lower * (1 - bufferPct);
+
+  if (currentPrice > upperBreak) return 'long';
+  if (currentPrice < lowerBreak) return 'short';
 
   return null;
 }
@@ -223,7 +245,7 @@ async function fetchKlines(symbol, interval, limit = FETCH_LIMIT) {
     const list = r?.data?.result?.list || [];
 
     return list.reverse().map(k => ({
-      time: +k[0],   // timestamp candela
+      time: +k[0],
       open: +k[1],
       high: +k[2],
       low: +k[3],
@@ -249,154 +271,33 @@ async function fetchCurrentPrice(symbol) {
   }
 }
 
-/* ───────── ANALYSIS ───────── */
-async function analyze(symbol, interval) {
-  const raw = await fetchKlines(symbol, interval, FETCH_LIMIT);
-  if (raw.length < PATTERN_WINDOW + 5) return;
-
-  // escludo SEMPRE l'ultima candela live
-  const closed = raw.slice(0, -1);
-  if (closed.length < PATTERN_WINDOW) return;
-
-  // uso solo il pattern recente
-  const klines = closed.slice(-PATTERN_WINDOW);
-  if (klines.length < PATTERN_WINDOW) return;
-
-  const s = state[symbol][interval];
-
-  // evita di rianalizzare la stessa ultima candela chiusa
-  const lastClosedBarTime = klines.at(-1).time;
-  if (s.lastBarTime === lastClosedBarTime) {
-    return;
-  }
-
-  const closes = klines.map(k => k.close);
-  const prevClose = closes.at(-2);
-  const lastClose = closes.at(-1);
-
-  // prezzo live SOLO per il messaggio
-  const currentPrice = await fetchCurrentPrice(symbol);
-
-  // EMA su finestra più ampia (closed, non solo pattern)
-  const closedCloses = closed.map(k => k.close);
-
-  const ema12Arr = EMA.calculate({ period: 12, values: closedCloses });
-  const ema50Arr = EMA.calculate({ period: 50, values: closedCloses });
-  const ema200Arr = EMA.calculate({ period: 200, values: closedCloses });
-
-  if (ema12Arr.length < 2 || ema50Arr.length < 1 || ema200Arr.length < 1) {
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  const prevEma12 = ema12Arr.at(-2);
-  const ema12 = ema12Arr.at(-1);
-  const ema50 = ema50Arr.at(-1);
-  const ema200 = ema200Arr.at(-1);
-
-  // Bollinger Bands su finestra chiusa
-  const bbArr = BollingerBands.calculate({ period: 20, values: closedCloses, stdDev: 2 });
-  if (bbArr.length < 2) {
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  const prevBbMid = bbArr.at(-2).middle;
-  const bbMid = bbArr.at(-1).middle;
-
-  let emaBbCross = '❌';
-  if (prevEma12 < prevBbMid && ema12 > bbMid) emaBbCross = '🟢 LONG';
-  if (prevEma12 > prevBbMid && ema12 < bbMid) emaBbCross = '🔴 SHORT';
-
-  // triangolo
-  const triangle = calculateTriangle(klines, TRIANGLE_LENGTH, TRIANGLE_MULT);
-
-  if (triangle.upper == null || triangle.lower == null) {
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  // filtro compressione per evitare triangoli "sporchi"
-  const compressed = hasCompression(klines);
-  if (!compressed) {
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  // breakout vero: solo su candela chiusa
-  const direction = triangleBreakout(prevClose, lastClose, triangle, BREAKOUT_BUFFER);
-
-  // reset anti-spam se non c'è breakout
-  if (!direction) {
-    s.lastSignal = null;
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  // filtro trend EMA50/EMA200
-  if (USE_TREND_FILTER) {
-    if (direction === 'long' && ema50 < ema200) {
-      s.lastBarTime = lastClosedBarTime;
-      return;
-    }
-    if (direction === 'short' && ema50 > ema200) {
-      s.lastBarTime = lastClosedBarTime;
-      return;
-    }
-  }
-
-  // opzionale: coerenza EMA12 vs BB middle
-  if (REQUIRE_EMA12_BB_CONFIRM) {
-    if (direction === 'long' && ema12 <= bbMid) {
-      s.lastBarTime = lastClosedBarTime;
-      return;
-    }
-    if (direction === 'short' && ema12 >= bbMid) {
-      s.lastBarTime = lastClosedBarTime;
-      return;
-    }
-  }
-
-  // anti-duplicato sulla stessa candela
-  const alertKey = `${symbol}-${interval}-${lastClosedBarTime}-${direction}`;
-  if (s.lastAlertKey === alertKey) {
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  // anti-spam classico
-  if (s.lastSignal === direction) {
-    s.lastBarTime = lastClosedBarTime;
-    return;
-  }
-
-  s.lastSignal = direction;
-  s.lastAlertKey = alertKey;
-  s.lastBarTime = lastClosedBarTime;
-
-  // range box per TP/SL
-  const box = getRangeBox(klines, 20);
-  const size = box.size || lastClose * 0.01;
-
-  const entryPrice = currentPrice ?? lastClose;
-
-  const tp = direction === 'long'
-    ? entryPrice + size
-    : entryPrice - size;
-
-  const sl = direction === 'long'
-    ? entryPrice - size * 0.5
-    : entryPrice + size * 0.5;
-
+/* ───────── MESSAGE BUILDERS ───────── */
+function buildMessage({
+  symbol,
+  interval,
+  direction,
+  entryPrice,
+  breakoutPrice,
+  triangle,
+  box,
+  ema12,
+  ema50,
+  ema200,
+  bbMid,
+  emaBbCross,
+  tp,
+  sl,
+  mode = 'CONFIRMED'
+}) {
   const emoji = coinEmojis[symbol] || '🔸';
 
-  const msg = `
-${emoji} *TRIANGLE BREAKOUT CONFIRMED*
+  return `
+${emoji} *${mode === 'LIVE' ? 'TRIANGLE BREAKOUT LIVE' : 'TRIANGLE BREAKOUT CONFIRMED'}*
 *${symbol}* [${interval}]
 
 ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(entryPrice)}
 
-📌 Close breakout: $${formatPrice(lastClose)}
+📌 Breakout Price: $${formatPrice(breakoutPrice)}
 📐 Triangle
 • Upper: $${formatPrice(triangle.upper)}
 • Lower: $${formatPrice(triangle.lower)}
@@ -416,9 +317,238 @@ ${direction === 'long' ? '🟢 LONG' : '🔴 SHORT'} @ $${formatPrice(entryPrice
 🎯 TP: $${formatPrice(tp)}
 🛑 SL: $${formatPrice(sl)}
 `.trim();
+}
+
+/* ───────── ANALYSIS ───────── */
+async function analyze(symbol, interval) {
+  const raw = await fetchKlines(symbol, interval, FETCH_LIMIT);
+  if (raw.length < 220) {
+    console.log(`${now()} ⚠️ ${symbol}[${interval}] dati insufficienti (${raw.length})`);
+    return;
+  }
+
+  const currentPrice = await fetchCurrentPrice(symbol);
+  const s = state[symbol][interval];
+
+  // Ultima candela live
+  const liveBar = raw.at(-1);
+
+  // SOLO candele chiuse
+  const closed = raw.slice(0, -1);
+  if (closed.length < PATTERN_WINDOW) return;
+
+  const klines = closed.slice(-PATTERN_WINDOW);
+  if (klines.length < PATTERN_WINDOW) return;
+
+  const lastClosedBarTime = klines.at(-1).time;
+  const closes = klines.map(k => k.close);
+  const prevClose = closes.at(-2);
+  const lastClose = closes.at(-1);
+
+  // EMA / BB su finestra ampia chiusa
+  const closedCloses = closed.map(k => k.close);
+
+  const ema12Arr = EMA.calculate({ period: 12, values: closedCloses });
+  const ema50Arr = EMA.calculate({ period: 50, values: closedCloses });
+  const ema200Arr = EMA.calculate({ period: 200, values: closedCloses });
+
+  if (ema12Arr.length < 2 || ema50Arr.length < 1 || ema200Arr.length < 1) {
+    console.log(`${now()} ⚠️ ${symbol}[${interval}] EMA insufficienti`);
+    return;
+  }
+
+  const prevEma12 = ema12Arr.at(-2);
+  const ema12 = ema12Arr.at(-1);
+  const ema50 = ema50Arr.at(-1);
+  const ema200 = ema200Arr.at(-1);
+
+  const bbArr = BollingerBands.calculate({ period: 20, values: closedCloses, stdDev: 2 });
+  if (bbArr.length < 2) {
+    console.log(`${now()} ⚠️ ${symbol}[${interval}] BB insufficienti`);
+    return;
+  }
+
+  const prevBbMid = bbArr.at(-2).middle;
+  const bbMid = bbArr.at(-1).middle;
+
+  let emaBbCross = '❌';
+  if (prevEma12 < prevBbMid && ema12 > bbMid) emaBbCross = '🟢 LONG';
+  if (prevEma12 > prevBbMid && ema12 < bbMid) emaBbCross = '🔴 SHORT';
+
+  // Triangolo
+  const triangle = calculateTriangle(klines, TRIANGLE_LENGTH, TRIANGLE_MULT);
+  if (triangle.upper == null || triangle.lower == null) {
+    console.log(`${now()} 🚫 ${symbol}[${interval}] no triangle`);
+    return;
+  }
+
+  // Compressione
+  const compressed = hasCompression(klines);
+  if (!compressed) {
+    console.log(`${now()} 🚫 ${symbol}[${interval}] no compression`);
+    return;
+  }
+
+  /* ───────── PRE-ALERT LIVE ───────── */
+  if (SEND_LIVE_PREALERT && currentPrice != null && !isNaN(currentPrice)) {
+    const liveDirection = triangleBreakoutLive(currentPrice, triangle, LIVE_BREAKOUT_BUFFER);
+
+    if (liveDirection) {
+      if (
+        (!USE_TREND_FILTER) ||
+        (liveDirection === 'long' && ema50 >= ema200) ||
+        (liveDirection === 'short' && ema50 <= ema200)
+      ) {
+        if (
+          (!REQUIRE_EMA12_BB_CONFIRM) ||
+          (liveDirection === 'long' && ema12 > bbMid) ||
+          (liveDirection === 'short' && ema12 < bbMid)
+        ) {
+          const liveBarTime = liveBar?.time || Date.now();
+          const liveAlertKey = `${symbol}-${interval}-${liveBarTime}-${liveDirection}-LIVE`;
+
+          if (s.lastLiveAlertKey !== liveAlertKey) {
+            const box = getRangeBox(klines, 20);
+            const size = box.size || lastClose * 0.01;
+
+            const entryPrice = currentPrice;
+            const tp = liveDirection === 'long' ? entryPrice + size : entryPrice - size;
+            const sl = liveDirection === 'long' ? entryPrice - size * 0.5 : entryPrice + size * 0.5;
+
+            const msg = buildMessage({
+              symbol,
+              interval,
+              direction: liveDirection,
+              entryPrice,
+              breakoutPrice: currentPrice,
+              triangle,
+              box,
+              ema12,
+              ema50,
+              ema200,
+              bbMid,
+              emaBbCross,
+              tp,
+              sl,
+              mode: 'LIVE'
+            });
+
+            console.log(
+              `${now()} ⚡ LIVE ${symbol}[${interval}] ${liveDirection.toUpperCase()} ` +
+              `price=${formatPrice(currentPrice)} upper=${formatPrice(triangle.upper)} lower=${formatPrice(triangle.lower)}`
+            );
+
+            s.lastLiveAlertKey = liveAlertKey;
+            await sendTelegram(msg);
+          }
+        }
+      }
+    }
+  }
+
+  /* ───────── ALERT CONFERMATO SU CHIUSURA ───────── */
+  // Analizza la candela chiusa UNA sola volta
+  if (s.lastClosedBarTime === lastClosedBarTime) {
+    return;
+  }
+
+  const direction = triangleBreakoutClosed(prevClose, lastClose, triangle, BREAKOUT_BUFFER);
 
   console.log(
-    `${now()} 🔺 ${symbol}[${interval}] ${direction.toUpperCase()} | ` +
+    `${now()} ${symbol}[${interval}] ` +
+    `prevClose=${formatPrice(prevClose)} lastClose=${formatPrice(lastClose)} ` +
+    `upper=${formatPrice(triangle.upper)} lower=${formatPrice(triangle.lower)} ` +
+    `upperBreak=${formatPrice(triangle.upper * (1 + BREAKOUT_BUFFER))} ` +
+    `lowerBreak=${formatPrice(triangle.lower * (1 - BREAKOUT_BUFFER))} ` +
+    `compressed=${compressed} direction=${direction || 'none'} ` +
+    `ema50=${formatPrice(ema50)} ema200=${formatPrice(ema200)}`
+  );
+
+  if (!direction) {
+    s.lastSignal = null;
+    s.lastClosedBarTime = lastClosedBarTime;
+    return;
+  }
+
+  // Trend filter opzionale
+  if (USE_TREND_FILTER) {
+    if (direction === 'long' && ema50 < ema200) {
+      console.log(`${now()} 🚫 ${symbol}[${interval}] LONG bloccato da trend filter`);
+      s.lastClosedBarTime = lastClosedBarTime;
+      return;
+    }
+    if (direction === 'short' && ema50 > ema200) {
+      console.log(`${now()} 🚫 ${symbol}[${interval}] SHORT bloccato da trend filter`);
+      s.lastClosedBarTime = lastClosedBarTime;
+      return;
+    }
+  }
+
+  // Conferma EMA12 vs BB opzionale
+  if (REQUIRE_EMA12_BB_CONFIRM) {
+    if (direction === 'long' && ema12 <= bbMid) {
+      console.log(`${now()} 🚫 ${symbol}[${interval}] LONG bloccato da EMA12/BB`);
+      s.lastClosedBarTime = lastClosedBarTime;
+      return;
+    }
+    if (direction === 'short' && ema12 >= bbMid) {
+      console.log(`${now()} 🚫 ${symbol}[${interval}] SHORT bloccato da EMA12/BB`);
+      s.lastClosedBarTime = lastClosedBarTime;
+      return;
+    }
+  }
+
+  const alertKey = `${symbol}-${interval}-${lastClosedBarTime}-${direction}-CONFIRMED`;
+
+  if (s.lastConfirmedAlertKey === alertKey) {
+    s.lastClosedBarTime = lastClosedBarTime;
+    return;
+  }
+
+  if (s.lastSignal === direction) {
+    s.lastClosedBarTime = lastClosedBarTime;
+    return;
+  }
+
+  s.lastSignal = direction;
+  s.lastConfirmedAlertKey = alertKey;
+  s.lastClosedBarTime = lastClosedBarTime;
+
+  if (!SEND_CONFIRMED_ALERT) return;
+
+  const box = getRangeBox(klines, 20);
+  const size = box.size || lastClose * 0.01;
+
+  const entryPrice = currentPrice ?? lastClose;
+
+  const tp = direction === 'long'
+    ? entryPrice + size
+    : entryPrice - size;
+
+  const sl = direction === 'long'
+    ? entryPrice - size * 0.5
+    : entryPrice + size * 0.5;
+
+  const msg = buildMessage({
+    symbol,
+    interval,
+    direction,
+    entryPrice,
+    breakoutPrice: lastClose,
+    triangle,
+    box,
+    ema12,
+    ema50,
+    ema200,
+    bbMid,
+    emaBbCross,
+    tp,
+    sl,
+    mode: 'CONFIRMED'
+  });
+
+  console.log(
+    `${now()} 🔺 CONFIRMED ${symbol}[${interval}] ${direction.toUpperCase()} | ` +
     `close=${formatPrice(lastClose)} upper=${formatPrice(triangle.upper)} lower=${formatPrice(triangle.lower)}`
   );
 
@@ -436,13 +566,11 @@ async function checkMarket() {
 
   try {
     for (const c of coins) {
-      const tfs = specialCoins[c] ? specialIntervals : baseIntervals;
-
-      for (const tf of tfs) {
+      for (const tf of intervals) {
         try {
           await analyze(c, tf);
         } catch (err) {
-          console.error(`${now()} ❌ Analyze error ${c}[${tf}]`, err.message);
+          console.error(`${now()} ❌ Analyze error ${c}[${tf}]`, err.response?.data || err.message);
         }
 
         await sleep(REQUEST_DELAY_MS);
@@ -458,6 +586,11 @@ app.get('/', (_, res) => res.send('✅ Triangle Breakout bot ATTIVO'));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server avviato su porta ${PORT}`);
+  console.log(`🕒 Timeframes attivi: ${intervals.join(', ')}`);
+  console.log(`📡 LIVE pre-alert: ${SEND_LIVE_PREALERT ? 'ON' : 'OFF'}`);
+  console.log(`✅ Confirmed alert: ${SEND_CONFIRMED_ALERT ? 'ON' : 'OFF'}`);
+  console.log(`📈 Trend filter EMA50/EMA200: ${USE_TREND_FILTER ? 'ON' : 'OFF'}`);
+
   checkMarket(); // prima scansione immediata
   setInterval(checkMarket, LOOP_EVERY_MS);
 });
