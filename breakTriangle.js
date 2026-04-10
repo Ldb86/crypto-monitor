@@ -67,8 +67,8 @@ const REQUIRE_EMA12_BB_CONFIRM = false;
   SEND_LIVE_PREALERT = true  => manda pre-alert appena il prezzo rompe live
   SEND_CONFIRMED_ALERT = true => manda conferma quando chiude la candela
 */
-const SEND_LIVE_PREALERT = false;
-const SEND_CONFIRMED_ALERT = true;
+const SEND_LIVE_PREALERT = true;
+const SEND_CONFIRMED_ALERT = false;
 
 /* ───────── STATE ───────── */
 const state = {};
