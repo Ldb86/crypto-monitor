@@ -2,9 +2,9 @@
   "name": "br-service",
   "version": "1.0.0",
   "description": "MACD + Breakout Range Box Bot",
-  "main": "BR.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node BR.js"
+    "start": "node index.js"
   },
   "engines": {
     "node": "18.x"
