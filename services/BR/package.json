@@ -1,7 +1,7 @@
 {
   "name": "br-service",
   "version": "1.0.0",
-  "description": "MACD + Breakout Range Box Bot",
+  "description": "Breakout + EMA5 x Bollinger Bands Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
