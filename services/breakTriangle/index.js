@@ -36,7 +36,7 @@ const coinEmojis = {
 
 /* ───────── TIMEFRAMES ───────── */
 /* 30m su TUTTE le coin */
-const intervals = ['30m', '2h', '4h', '6h', '12h', '1d', '1w'];
+const intervals = ['30m'];
 
 const intervalMap = {
   '30m':'30',
@@ -67,8 +67,8 @@ const REQUIRE_EMA12_BB_CONFIRM = false;
   SEND_LIVE_PREALERT = true  => manda pre-alert appena il prezzo rompe live
   SEND_CONFIRMED_ALERT = true => manda conferma quando chiude la candela
 */
-const SEND_LIVE_PREALERT = false;
-const SEND_CONFIRMED_ALERT = true;
+const SEND_LIVE_PREALERT = true;
+const SEND_CONFIRMED_ALERT = false;
 
 /* ───────── STATE ───────── */
 const state = {};
@@ -390,7 +390,8 @@ async function analyze(symbol, interval) {
   }
 
   /* ───────── PRE-ALERT LIVE ───────── */
-  if (SEND_LIVE_PREALERT && currentPrice != null && !isNaN(currentPrice)) {
+  const sendLiveAlert = interval === '30m' ? !SEND_LIVE_PREALERT : SEND_LIVE_PREALERT;
+  if (sendLiveAlert && currentPrice != null && !isNaN(currentPrice)) {
     const liveDirection = triangleBreakoutLive(currentPrice, triangle, LIVE_BREAKOUT_BUFFER);
 
     if (liveDirection) {
@@ -514,7 +515,8 @@ async function analyze(symbol, interval) {
   s.lastConfirmedAlertKey = alertKey;
   s.lastClosedBarTime = lastClosedBarTime;
 
-  if (!SEND_CONFIRMED_ALERT) return;
+  const sendConfirmedAlert = interval === '30m' ? !SEND_CONFIRMED_ALERT : SEND_CONFIRMED_ALERT;
+  if (!sendConfirmedAlert) return;
 
   const box = getRangeBox(klines, 20);
   const size = box.size || lastClose * 0.01;
