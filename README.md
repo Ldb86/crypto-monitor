@@ -13,7 +13,10 @@ crypto-monitor/
 │   ├── breakTriangle/               # Triangle Breakout Bot
 │   │   ├── index.js
 │   │   └── package.json
-│   └── bandaBellinger/              # EMA5 x Bollinger Bands Bot
+│   ├── bandaBellinger/              # EMA5 x Bollinger Bands Bot
+│   │   ├── index.js
+│   │   └── package.json
+│   └── maradona(v18.3.8)/           # Elite Hybrid Bot
 │       ├── index.js
 │       └── package.json
 ├── shared/
@@ -48,6 +51,11 @@ npm start
 
 # Service 3 - Banda Bellinger (in another terminal)
 cd services/bandaBellinger
+npm install
+npm start
+
+# Service 4 - Maradona (in another terminal)
+cd services/maradona(v18.3.8)
 npm install
 npm start
 ```
@@ -87,6 +95,13 @@ Each service can use different ports by setting PORT env var.
 - **Start**: `npm install && npm start`
 - **Port**: 3000 (or PORT env var)
 
+### 4. **maradona(v18.3.8) Service** (Elite Hybrid Bot)
+- **Location**: `services/maradona(v18.3.8)`
+- **Description**: 
+- **Uses**: 
+- **Start**: `npm install && npm start`
+- **Port**: 3000 (or PORT env var)
+
 ## 🚢 Railway Deployment
 
 Each service is deployed as a **separate Railway service**:
@@ -104,6 +119,9 @@ cd services/breakTriangle && npm install && npm start
 
 # bandaBellinger Service
 cd services/bandaBellinger && npm install && npm start
+
+# maradona(v18.3.8) Service
+cd services/maradona(v18.3.8) && npm install && npm start
 ```
 
 ✅ Add **environment variables** in Railway dashboard:
