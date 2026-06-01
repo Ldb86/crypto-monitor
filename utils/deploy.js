@@ -1,6 +1,7 @@
-//crypto-monitor => production = node BR.js (4 mouths ago) - new message
-//new crypto => prod = node breakTriangle.js (---) - fix notification
-//upgrade_crypto => prod_2 = node bandaBellinger.js (2 mouths ago) - fix EMA5 when ther's real cross
+//BR => production = node BR.js (4 mouths ago) - new message
+//breakTriangle => prod = node breakTriangle.js (---) - fix notification
+//bandaBellinger => prod_2 = node bandaBellinger.js (2 mouths ago) - fix EMA5 when ther's real cross
+//maradona => staging = node maradona(v18.3.8)
 
 
 
