@@ -1,18 +1,14 @@
-FROM gradle:8.7-jdk17 AS build
+FROM eclipse-temurin:21-jdk
 
 WORKDIR /app
 
 COPY . .
 
-RUN gradle clean build -x test
+RUN ./gradlew clean build -x test --no-daemon
 
-FROM eclipse-temurin:17-jre
+# Railway espone PORT come variabile d'ambiente
+ENV PORT=8080
 
-WORKDIR /app
+EXPOSE 8080
 
-COPY --from=build /app/build/libs/*.jar app.jar
-
-ENV PORT=3000
-EXPOSE 3000
-
-CMD ["java", "-jar", "app.jar"]
+CMD ["java", "-jar", "build/libs/maradona-java-brain-0.0.1-SNAPSHOT.jar"]
