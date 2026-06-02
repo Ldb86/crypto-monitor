@@ -390,7 +390,8 @@ async function analyze(symbol, interval) {
   }
 
   /* ───────── PRE-ALERT LIVE ───────── */
-  if (SEND_LIVE_PREALERT && currentPrice != null && !isNaN(currentPrice)) {
+  const sendLiveAlert = interval === '30m' ? !SEND_LIVE_PREALERT : SEND_LIVE_PREALERT;
+  if (sendLiveAlert && currentPrice != null && !isNaN(currentPrice)) {
     const liveDirection = triangleBreakoutLive(currentPrice, triangle, LIVE_BREAKOUT_BUFFER);
 
     if (liveDirection) {
@@ -514,7 +515,8 @@ async function analyze(symbol, interval) {
   s.lastConfirmedAlertKey = alertKey;
   s.lastClosedBarTime = lastClosedBarTime;
 
-  if (!SEND_CONFIRMED_ALERT) return;
+  const sendConfirmedAlert = interval === '30m' ? !SEND_CONFIRMED_ALERT : SEND_CONFIRMED_ALERT;
+  if (!sendConfirmedAlert) return;
 
   const box = getRangeBox(klines, 20);
   const size = box.size || lastClose * 0.01;
