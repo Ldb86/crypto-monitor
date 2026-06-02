@@ -16,9 +16,9 @@ crypto-monitor/
 │   ├── bandaBellinger/              # EMA5 x Bollinger Bands Bot
 │   │   ├── index.js
 │   │   └── package.json
-│   └── maradona(v18.3.8)/           # Elite Hybrid Bot
-│       ├── index.js
-│       └── package.json
+│   └── maradona-java-brain/           # Elite Hybrid Bot (Java Spring Boot)
+│       ├── build.gradle
+│       └── README.md
 ├── shared/
 │   ├── utils/                       # Shared utilities
 │   └── otherFiles/                  # Backup files
@@ -32,6 +32,7 @@ crypto-monitor/
 ### Prerequisites
 - Node.js 18.x
 - npm
+- Java 21 (for `services/maradona-java-brain`)
 - `.env` file with BOT_TOKENS and CHAT_IDS
 
 ### Installation & Run Locally
@@ -55,14 +56,13 @@ npm install
 npm start
 
 # Service 4 - Maradona (in another terminal)
-cd services/maradona(v18.3.8)
-npm install
-npm start
+cd services/maradona-java-brain
+gradle bootRun
 ```
 
 ### Environment Setup
 
-Create `.env` file in project root:
+Create a `.env` file in the project root for the Node.js services:
 
 ```env
 BOT_TOKENS=token1,token2,token3
@@ -70,7 +70,15 @@ CHAT_IDS=chatid1,chatid2,chatid3
 PORT=3000
 ```
 
-Each service can use different ports by setting PORT env var.
+The Java service `services/maradona-java-brain` uses Railway environment variables defined in its own `README.md`:
+
+- `TV_WEBHOOK_SECRET`
+- `SYMBOLS`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `BYBIT_WS_URL`
+
+Each service can use different ports by setting `PORT`.
 
 ## 🔧 Services
 
@@ -95,18 +103,18 @@ Each service can use different ports by setting PORT env var.
 - **Start**: `npm install && npm start`
 - **Port**: 3000 (or PORT env var)
 
-### 4. **maradona(v18.3.8) Service** (Elite Hybrid Bot)
-- **Location**: `services/maradona(v18.3.8)`
-- **Description**: 
-- **Uses**: 
-- **Start**: `npm install && npm start`
-- **Port**: 3000 (or PORT env var)
+### 4. **maradona-java-brain Service** (Elite Hybrid Bot)
+- **Location**: `services/maradona-java-brain`
+- **Description**: Java Spring Boot service that validates TradingView alerts with Bybit market flow before sending Telegram notifications
+- **Uses**: TradingView webhook, Bybit WebSocket, Telegram notifications
+- **Start**: `gradle bootRun`
+- **Port**: 3000 (or `PORT` env var)
 
 ## 🚢 Railway Deployment
 
 Each service is deployed as a **separate Railway service**:
 
-1. Create 3 Railway services (one for each bot)
+1. Create 4 Railway services (one for each bot)
 2. Connect each to the GitHub repository
 3. Set **Custom Start Command** for each:
 
@@ -120,14 +128,19 @@ cd services/breakTriangle && npm install && npm start
 # bandaBellinger Service
 cd services/bandaBellinger && npm install && npm start
 
-# maradona(v18.3.8) Service
-cd services/maradona(v18.3.8) && npm install && npm start
+# maradona-java-brain Service
+cd services/maradona-java-brain && gradle bootRun
 ```
 
 ✅ Add **environment variables** in Railway dashboard:
 - `BOT_TOKENS`
 - `CHAT_IDS`
 - `PORT` (use different ports per service, or auto-assign)
+- `TV_WEBHOOK_SECRET` (for `maradona-java-brain`)
+- `SYMBOLS` (for `maradona-java-brain`)
+- `TELEGRAM_BOT_TOKEN` (for `maradona-java-brain`)
+- `TELEGRAM_CHAT_ID` (for `maradona-java-brain`)
+- `BYBIT_WS_URL` (for `maradona-java-brain`)
 
 ## 📊 Key Features
 

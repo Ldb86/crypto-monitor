@@ -1,0 +1,14 @@
+server:
+  port: ${PORT:8080}
+
+maradona:
+  symbols: ${SYMBOLS:ETHUSDT,BTCUSDT}
+  bybit:
+    wsUrl: ${BYBIT_WS_URL:wss://stream.bybit.com/v5/public/linear}
+  telegram:
+    botToken: ${TELEGRAM_BOT_TOKEN:}
+    chatId: ${TELEGRAM_CHAT_ID:}
+  tv:
+    secret: ${TV_WEBHOOK_SECRET:change-me}
+  risk:
+    maxScoreToNotify: 6
