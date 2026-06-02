@@ -1,14 +1,28 @@
+# ---- BUILD STAGE ----
+FROM eclipse-temurin:21-jdk AS build
+
+WORKDIR /app
+
+# Copia tutto il progetto
+COPY . .
+
+# Rende eseguibile gradlew
+RUN chmod +x gradlew
+
+# Compila il progetto senza test
+RUN ./gradlew clean build -x test --no-daemon
+
+# ---- RUNTIME STAGE ----
 FROM eclipse-temurin:21-jdk
 
 WORKDIR /app
 
-COPY . .
+# Copia il JAR generato e rinominalo in app.jar
+COPY --from=build /app/build/libs/*.jar app.jar
 
-RUN ./gradlew clean build -x test --no-daemon
-
-# Railway espone PORT come variabile d'ambiente
+# Railway usa la variabile PORT
 ENV PORT=8080
-
 EXPOSE 8080
 
-CMD ["java", "-jar", "build/libs/maradona-java-brain-0.0.1-SNAPSHOT.jar"]
+# Avvia l'app
+CMD ["java", "-jar", "app.jar"]
