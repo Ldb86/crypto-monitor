@@ -1,192 +1,364 @@
 # Crypto Monitor - Microservices Architecture
 
-Complete restructure of the crypto-monitor project for Railway deployment with independent microservices.
+Progetto organizzato per deploy su Railway con microservizi indipendenti.
 
 ## 📁 Project Structure
 
-```
+```text
 crypto-monitor/
 ├── services/
-│   ├── BR/                          # Range Box Breakout Bot
+│   ├── BR/                         # Range Box Breakout Bot - Node.js
 │   │   ├── index.js
 │   │   └── package.json
-│   ├── breakTriangle/               # Triangle Breakout Bot
+│   ├── breakTriangle/              # Triangle Breakout Bot - Node.js
 │   │   ├── index.js
 │   │   └── package.json
-│   ├── bandaBellinger/              # EMA5 x Bollinger Bands Bot
+│   ├── bandaBellinger/             # EMA5 x Bollinger Bands Bot - Node.js
 │   │   ├── index.js
 │   │   └── package.json
-│   └── maradona-java-brain/           # Elite Hybrid Bot (Java Spring Boot)
+│   └── maradona-java-brain/        # Maradona Brain + Pelé Execution - Java Spring Boot
+│       ├── Dockerfile              # obbligatorio per Railway
 │       ├── build.gradle
-│       └── README.md
+│       ├── settings.gradle
+│       ├── README.md
+│       ├── .env.example
+│       └── src/
 ├── shared/
-│   ├── utils/                       # Shared utilities
-│   └── otherFiles/                  # Backup files
-├── .env.example                     # Environment template
+├── utils/
+├── .env.example                    # solo template, non mettere token veri
 ├── .gitignore
+├── package.json                    # progetto Node principale
 └── README.md
 ```
 
-## 🚀 Quick Start
+---
 
-### Prerequisites
-- Node.js 18.x
-- npm
-- Java 21 (for `services/maradona-java-brain`)
-- `.env` file with BOT_TOKENS and CHAT_IDS
+## 🚀 Quick Start locale
 
-### Installation & Run Locally
+Ogni servizio gira in modo indipendente.
 
-Each service runs independently:
+### Node services
 
 ```bash
-# Service 1 - Range Box Breakout
 cd services/BR
 npm install
 npm start
+```
 
-# Service 2 - Triangle Breakout (in another terminal)
+```bash
 cd services/breakTriangle
 npm install
 npm start
+```
 
-# Service 3 - Banda Bellinger (in another terminal)
+```bash
 cd services/bandaBellinger
 npm install
 npm start
-
-# Service 4 - Maradona (in another terminal)
-cd services/maradona-java-brain
-gradle bootRun
 ```
 
-### Environment Setup
+### Maradona Java Brain
 
-Create a `.env` file in the project root for the Node.js services:
-
-```env
-BOT_TOKENS=token1,token2,token3
-CHAT_IDS=chatid1,chatid2,chatid3
-PORT=3000
-```
-
-The Java service `services/maradona-java-brain` uses Railway environment variables defined in its own `README.md`:
-
-- `TV_WEBHOOK_SECRET`
-- `SYMBOLS`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `BYBIT_WS_URL`
-
-Each service can use different ports by setting `PORT`.
-
-## 🔧 Services
-
-### 1. **BR Service** (Range Box Breakout)
-- **Location**: `services/BR`
-- **Description**: Detects breakouts from range boxes (last 20 candles)
-- **Uses**: MACD, EMA indicators
-- **Start**: `npm install && npm start`
-- **Port**: 3000 (or PORT env var)
-
-### 2. **breakTriangle Service** (Triangle Breakout)
-- **Location**: `services/breakTriangle`
-- **Description**: Detects triangle pattern breakouts real-time
-- **Uses**: Triangle patterns, EMA, Bollinger Bands
-- **Start**: `npm install && npm start`
-- **Port**: 3000 (or PORT env var)
-
-### 3. **bandaBellinger Service** (EMA5 x Bollinger)
-- **Location**: `services/bandaBellinger`
-- **Description**: EMA5 and Bollinger Bands crosses
-- **Uses**: EMA-5, Bollinger Bands
-- **Start**: `npm install && npm start`
-- **Port**: 3000 (or PORT env var)
-
-### 4. **maradona-java-brain Service** (Elite Hybrid Bot)
-- **Location**: `services/maradona-java-brain`
-- **Description**: Java Spring Boot service that validates TradingView alerts with Bybit market flow before sending Telegram notifications
-- **Uses**: TradingView webhook, Bybit WebSocket, Telegram notifications
-- **Start**: `gradle bootRun`
-- **Port**: 3000 (or `PORT` env var)
-
-## 🚢 Railway Deployment
-
-Each service is deployed as a **separate Railway service**:
-
-1. Create 4 Railway services (one for each bot)
-2. Connect each to the GitHub repository
-3. Set **Custom Start Command** for each:
+Per Maradona usare la cartella:
 
 ```bash
-# BR Service
-cd services/BR && npm install && npm start
-
-# breakTriangle Service
-cd services/breakTriangle && npm install && npm start
-
-# bandaBellinger Service
-cd services/bandaBellinger && npm install && npm start
-
-# maradona-java-brain Service
-cd services/maradona-java-brain && gradle bootRun
+cd services/maradona-java-brain
 ```
 
-✅ Add **environment variables** in Railway dashboard:
-- `BOT_TOKENS`
-- `CHAT_IDS`
-- `PORT` (use different ports per service, or auto-assign)
-- `TV_WEBHOOK_SECRET` (for `maradona-java-brain`)
-- `SYMBOLS` (for `maradona-java-brain`)
-- `TELEGRAM_BOT_TOKEN` (for `maradona-java-brain`)
-- `TELEGRAM_CHAT_ID` (for `maradona-java-brain`)
-- `BYBIT_WS_URL` (for `maradona-java-brain`)
+Se hai Gradle installato localmente:
 
-## 📊 Key Features
-
-✓ **Independent Services**: Each bot runs in its own process
-✓ **Real-time Alerts**: Telegram notifications on signal detection
-✓ **Bybit API Integration**: Live market data
-✓ **Multiple Indicators**: EMA, MACD, Bollinger Bands, Triangle Patterns
-✓ **Anti-spam**: Prevents duplicate alerts
-✓ **Production Ready**: Error handling and logging
-
-## 🔍 Monitoring
-
-Each service logs to console:
-
-```
-[HH:MM:SS] 🚀 Server avviato su porta 3000
-[HH:MM:SS] 🔺 CONFIRMED BTC[4h] LONG | close=$...
-[HH:MM:SS] 📬 Telegram BTC[4h]
+```bash
+gradle clean build -x test
+java -jar build/libs/*.jar
 ```
 
-Check Railway logs for real-time monitoring.
-
-## 📝 Notes
-
-- **Logica Inalterata**: All original bot logic is preserved
-- **Dependencies**: axios, express, dotenv, technicalindicators
-- **Node Version**: 18.x (set in package.json engines)
-- **Database**: None required (stateless services)
-
-## 🛠️ Customization
-
-Modify parameters in each service's `index.js`:
-- Timeframes: `intervals`, `intervalMap`
-- Indicators: periods, standard deviations
-- Risk management: TP/SL calculations
-- Telegram: multi-account support via token arrays
-
-## 📞 Support
-
-For issues:
-1. Check `.env` configuration
-2. Verify Telegram tokens and chat IDs
-3. Check Bybit API availability
-4. Review service logs for errors
+Su Railway invece **non usare `gradle bootRun` come Start Command**, perché il container può non avere Gradle installato. Per Railway usiamo il `Dockerfile`.
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: April 2026
+## 🧠 Service 4 — Maradona Java Brain
+
+### Location
+
+```text
+services/maradona-java-brain
+```
+
+### Scopo
+
+Servizio Java Spring Boot che riceve alert TradingView, valida il segnale con logica Maradona/Pelé e invia notifiche Telegram più pulite.
+
+Flusso operativo:
+
+```text
+TradingView Alert JSON
+→ Railway Webhook
+→ Java Maradona Brain
+→ TP Guard / Entry Range / No Chase / Protect
+→ Telegram
+```
+
+### Funzioni attuali
+
+```text
+READY / MASTER / WARNING / PROTECT / FLIP
+TP Guard direzionale
+Entry Range
+No Chase
+Validazione TP incoerenti
+Filtro segnali TradingView
+Preparazione integrazione Bybit flow
+```
+
+### Variabili ambiente per Railway
+
+Impostare nel service Railway, sezione **Variables**:
+
+```env
+TV_WEBHOOK_SECRET=una_password_segreta
+SYMBOLS=BTCUSDT,ETHUSDT
+TELEGRAM_BOT_TOKEN=token_bot_telegram
+TELEGRAM_CHAT_ID=chat_id_o_gruppo
+BYBIT_WS_URL=wss://stream.bybit.com/v5/public/linear
+BYBIT_BASE_URL=https://api.bybit.com
+PORT=8080
+```
+
+Non caricare mai `.env` con token veri su GitHub. Usare solo `.env.example`.
+
+---
+
+## 🚢 Railway Deployment
+
+Ogni bot deve essere un **Railway service separato**.
+
+### Node services
+
+Per i servizi Node puoi usare Start Command tipo:
+
+```bash
+cd services/BR && npm install && npm start
+```
+
+```bash
+cd services/breakTriangle && npm install && npm start
+```
+
+```bash
+cd services/bandaBellinger && npm install && npm start
+```
+
+---
+
+## 🚢 Railway Deployment — Maradona Java Brain
+
+Per Maradona Java NON usare il progetto Node principale e NON usare `node $START_CMD`.
+
+Nel service Railway dedicato a Maradona impostare:
+
+### 1. Repository
+
+Repo GitHub:
+
+```text
+crypto-monitor
+```
+
+### 2. Root Directory
+
+Fondamentale:
+
+```text
+services/maradona-java-brain
+```
+
+Se la root directory è vuota, Railway prova a deployare il progetto Node principale e nei log si vedono messaggi tipo:
+
+```text
+crypto-monitor@1.0.0 start
+node $START_CMD
+```
+
+Questo significa che NON sta partendo Maradona Java.
+
+### 3. Dockerfile
+
+Dentro `services/maradona-java-brain` deve esistere un file chiamato:
+
+```text
+Dockerfile
+```
+
+Contenuto consigliato:
+
+```dockerfile
+FROM gradle:8.7-jdk17 AS build
+
+WORKDIR /app
+
+COPY . .
+
+RUN gradle clean build -x test
+
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+COPY --from=build /app/build/libs/*.jar app.jar
+
+ENV PORT=8080
+EXPOSE 8080
+
+CMD ["java", "-jar", "app.jar"]
+```
+
+### 4. Build Command e Start Command
+
+Nel service Railway Maradona lasciare vuoti:
+
+```text
+Build Command = vuoto
+Start Command = vuoto
+```
+
+Il Dockerfile gestisce build e avvio.
+
+Se invece Railway mostra questo errore:
+
+```text
+/bin/bash: line 1: gradle: command not found
+```
+
+vuol dire che sta usando un comando manuale `gradle ...` fuori dal Dockerfile. Svuotare Build/Start Command oppure verificare che il Dockerfile sia nella root directory corretta.
+
+### 5. Deploy
+
+Dopo ogni modifica:
+
+```bash
+git add services/maradona-java-brain
+git commit -m "Update Maradona Java Brain service"
+git push
+```
+
+Con autodeploy attivo, Railway riparte automaticamente. Altrimenti usare:
+
+```text
+Deploy Latest Commit
+```
+
+### 6. Log corretti attesi
+
+Nei log del service Maradona NON devi vedere:
+
+```text
+npm install
+npm start
+node $START_CMD
+crypto-monitor@1.0.0
+```
+
+Devi vedere qualcosa tipo:
+
+```text
+Using Dockerfile
+FROM gradle:8.7-jdk17
+gradle clean build -x test
+java -jar app.jar
+Spring Boot started
+```
+
+---
+
+## 🔗 Webhook TradingView
+
+Quando il dominio Railway è attivo, TradingView dovrà inviare gli alert al webhook Java.
+
+Esempio URL:
+
+```text
+https://TUO-SERVICE.up.railway.app/webhook/tradingview
+```
+
+Il messaggio TradingView dovrà essere JSON, non solo `MARADONA ALERT`.
+
+Esempio:
+
+```json
+{
+  "secret": "TV_WEBHOOK_SECRET",
+  "pair": "ETHUSDT.P",
+  "tf": "30",
+  "signal": "MASTER_SHORT",
+  "entry": 2069.60,
+  "sl": 2140.00,
+  "tp1": 2044.02,
+  "tp2": 2010.02,
+  "entryType": "BREAKDOWN_CONFIRM",
+  "compression": "NO"
+}
+```
+
+---
+
+## 🧪 Diagnosi errori Railway
+
+### Errore: `gradle: command not found`
+
+Causa:
+
+```text
+Railway sta provando a eseguire Gradle fuori da Dockerfile.
+```
+
+Soluzione:
+
+```text
+1. Aggiungere Dockerfile in services/maradona-java-brain
+2. Root Directory = services/maradona-java-brain
+3. Build Command vuoto
+4. Start Command vuoto
+5. Redeploy
+```
+
+### Errore: parte Node invece di Java
+
+Log tipico:
+
+```text
+crypto-monitor@1.0.0 start
+node $START_CMD
+```
+
+Soluzione:
+
+```text
+Root Directory sbagliata. Impostare services/maradona-java-brain.
+```
+
+### Errore generico Build image failed
+
+Aprire:
+
+```text
+Build Logs
+```
+
+e controllare le righe rosse. Lo screenshot Details non basta.
+
+---
+
+## 📝 Notes
+
+- I servizi Node e Maradona Java sono separati.
+- Il Java Maradona non deve stare dentro un `index.js`.
+- `services/maradona(v18.3.8)` può restare come vecchia cartella, ma non va usata per il service Java.
+- Il service corretto è `services/maradona-java-brain`.
+- I segreti vanno su Railway Variables, non su GitHub.
+- Versione Maradona Java attuale: `v0.4 entry-range-protect`.
+- Versione Pine/TradingView attuale: `V18.3.8 CLEAN ALERTS READY MASTER`.
+
+---
+
+**Version**: 1.1.0  
+**Last Updated**: June 2026
