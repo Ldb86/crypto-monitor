@@ -26,7 +26,7 @@ FROM eclipse-temurin:21-jdk
 WORKDIR /app
 
 # Copia il JAR generato e rinominalo in app.jar
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/maradona-java-brain-0.0.1-SNAPSHOT.jar app.jar
 
 # Copia lo script entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
