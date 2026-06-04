@@ -48,3 +48,6 @@ EXPOSE 8080
 
 # Usa lo script entrypoint per debug
 ENTRYPOINT ["/app/entrypoint.sh"]
+
+# Fallback CMD (in caso l'ENTRYPOINT non funzioni)
+CMD []
