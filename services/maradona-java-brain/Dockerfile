@@ -1,16 +1,13 @@
 # ---- BUILD STAGE ----
-FROM eclipse-temurin:21-jdk AS build
+FROM gradle:9-jdk AS build
 
 WORKDIR /app
 
 # Copia tutto il progetto
 COPY . .
 
-# Rende eseguibile gradlew
-RUN chmod +x gradlew
-
 # Compila il progetto senza test
-RUN ./gradlew clean build -x test --no-daemon
+RUN gradle clean build -x test --no-daemon
 
 # ---- RUNTIME STAGE ----
 FROM eclipse-temurin:21-jdk
