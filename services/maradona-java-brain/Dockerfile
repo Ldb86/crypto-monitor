@@ -28,6 +28,16 @@ WORKDIR /app
 # Copia il JAR generato e rinominalo in app.jar
 COPY --from=build /app/build/libs/*.jar app.jar
 
+# Debug: verifica se il JAR è stato copiato
+RUN echo "=== Files in runtime /app ===" && ls -la /app/ || echo "FAILED to list /app"
+RUN if [ ! -f /app/app.jar ]; then \
+  echo "ERROR: app.jar not found in runtime stage!"; \
+  echo "Contents of /app:"; \
+  ls -la /app/; \
+  exit 1; \
+fi
+RUN echo "app.jar size: $(du -h /app/app.jar | cut -f1)"
+
 # Railway usa la variabile PORT
 ENV PORT=8080
 EXPOSE 8080
