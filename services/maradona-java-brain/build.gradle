@@ -5,9 +5,13 @@ plugins {
 }
 
 group = 'com.maradona'
-version = '0.1.0'
+version = '0.0.1-SNAPSHOT'
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+
+bootJar {
+    archiveFileName.set('maradona-java-brain-0.0.1-SNAPSHOT.jar')
+}
 
 repositories { mavenCentral() }
 
