@@ -28,6 +28,10 @@ WORKDIR /app
 # Copia il JAR generato e rinominalo in app.jar
 COPY --from=build /app/build/libs/*.jar app.jar
 
+# Copia lo script entrypoint
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Debug: verifica se il JAR è stato copiato
 RUN echo "=== Files in runtime /app ===" && ls -la /app/ || echo "FAILED to list /app"
 RUN if [ ! -f /app/app.jar ]; then \
@@ -42,5 +46,5 @@ RUN echo "app.jar size: $(du -h /app/app.jar | cut -f1)"
 ENV PORT=8080
 EXPOSE 8080
 
-# Avvia l'app
-CMD ["java", "-jar", "app.jar"]
+# Usa lo script entrypoint per debug
+ENTRYPOINT ["/app/entrypoint.sh"]
