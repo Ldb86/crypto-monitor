@@ -7,7 +7,7 @@ COPY package.json .
 COPY src/ ./src/
 
 # Installa dipendenze di produzione
-RUN npm ci --only=production
+RUN npm install --production
 
 # Esponi la porta Railway (PORT)
 ENV NODE_ENV=production
