@@ -1,0 +1,15 @@
+{
+  "name": "maradona-pele-node",
+  "version": "18.4.0-node-wyckoff-elliott",
+  "description": "MARADONA Brain + PELE Execution Node.js V18.4 con Wyckoff Core 2.0 ed Elliott Lite",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "demo": "node examples/run-backtest.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

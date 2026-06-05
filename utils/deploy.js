@@ -1,7 +1,7 @@
-//BR => production = node BR.js (4 mouths ago) - new message
+//BR => production = node BR.js (04/06/2026) - new message
 //breakTriangle => prod = node breakTriangle.js (---) - fix notification
-//bandaBellinger => prod_2 = node bandaBellinger.js (2 mouths ago) - fix EMA5 when ther's real cross
-//maradona => staging = node maradona(v18.3.8)
+//bandaBellinger => prod_2 = node bandaBellinger.js (04/06/2026) - fix EMA5 when ther's real cross -- offline
+//maradona => staging = node (04/06/2026) -  fix dockerfile_4
 
 
 

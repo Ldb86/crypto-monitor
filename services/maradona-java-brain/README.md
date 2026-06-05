@@ -21,7 +21,7 @@ BYBIT_WS_URL=wss://stream.bybit.com/v5/public/linear
 URL:
 
 ```text
-https://TUO-SERVER.up.railway.app/webhook/tradingview
+https://maradona-1838-staging.up.railway.app/webhook/tradingview
 ```
 
 Metodo: POST JSON.
@@ -32,7 +32,7 @@ Quando colleghiamo TradingView a Java, il messaggio deve essere JSON, non solo `
 
 ```json
 {
-  "secret":"scegli-tu",
+  "secret":"maradona1838",
   "symbol":"{{ticker}}",
   "tf":"{{interval}}",
   "signal":"MASTER_SHORT",
