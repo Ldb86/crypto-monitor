@@ -80,13 +80,27 @@ Railroad Deploy Commands:
 ─────────────────────────
 
 Service 1 - BR:
-  cd services/BR && npm install && npm start
+  Root Directory: /
+  Watch Path: /services/BR/**
+  Command Start Command: cd services/BR && npm install && npm start
 
 Service 2 - breakTriangle:
-  cd services/breakTriangle && npm install && npm start
+  Root Directory: services/breakTriangle
+  Watch Path: /services/breakTriangle/**
+  Command Start Command:(cd services/breakTriangle && npm install &&) npm start
 
 Service 3 - bandaBellinger:
-  cd services/bandaBellinger && npm install && npm start
+  Root Directory: /
+  Watch Path: /services/bandaBellinger/**
+  Command Start Command: cd services/bandaBellinger && npm install && npm start
+
+Service 4 - maradona:
+  Root Directory: services/maradona-java-brain
+  Public Networking: maradona-1838-staging.up.railway.app
+  Builder: Dockerfile
+  Dockerfile Path: /services/maradona-java-brain/Dockerfile
+  Watch Path: services/maradona-java-brain/**
+   
 
 
 📋 QUICK START LOCAL
