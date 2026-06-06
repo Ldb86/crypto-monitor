@@ -40,8 +40,10 @@ public class TradingViewWebhookController {
             return ResponseEntity.status(401).body("bad secret");
         }
 
-        String normalizedSymbol = normalizeSymbol(signal.symbol());
-        MarketSnapshot snapshot = marketState.get(normalizedSymbol);
+        //String normalizedSymbol = (signal.symbol());
+        String tvSymbol = signal.symbol();
+        String bybitSymbol = normalizeSymbol(tvSymbol);
+        MarketSnapshot snapshot = marketState.getSnapshot(bybitSymbol);
         Decision decision = brain.evaluate(signal, snapshot);
         telegram.send(formatTelegram(signal, snapshot, decision));
         return ResponseEntity.ok(decision);
@@ -49,9 +51,16 @@ public class TradingViewWebhookController {
 
     private String normalizeSymbol(String symbol) {
         if (symbol == null) {
-            return null;
+            return "";
         }
-        return symbol.toUpperCase().replaceAll("\\.P$", "");
+        return symbol
+                .replace("BYBIT", "")
+                .replace("BINANCE", "")
+                .replace(".P", "")
+                .replace("/", "")
+                .trim()
+                .toUpperCase()
+        ;
     }
 
     private String formatTelegram(TradingViewSignal s, MarketSnapshot m, Decision d) {
