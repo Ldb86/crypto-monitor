@@ -40,10 +40,18 @@ public class TradingViewWebhookController {
             return ResponseEntity.status(401).body("bad secret");
         }
 
-        MarketSnapshot snapshot = marketState.get(signal.symbol());
+        String normalizedSymbol = normalizeSymbol(signal.symbol());
+        MarketSnapshot snapshot = marketState.get(normalizedSymbol);
         Decision decision = brain.evaluate(signal, snapshot);
         telegram.send(formatTelegram(signal, snapshot, decision));
         return ResponseEntity.ok(decision);
+    }
+
+    private String normalizeSymbol(String symbol) {
+        if (symbol == null) {
+            return null;
+        }
+        return symbol.toUpperCase().replaceAll("\\.P$", "");
     }
 
     private String formatTelegram(TradingViewSignal s, MarketSnapshot m, Decision d) {
