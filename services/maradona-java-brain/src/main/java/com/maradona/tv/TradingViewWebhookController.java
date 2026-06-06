@@ -40,12 +40,10 @@ public class TradingViewWebhookController {
             return ResponseEntity.status(401).body("bad secret");
         }
 
-        //String normalizedSymbol = (signal.symbol());
-        String tvSymbol = signal.symbol();
-        String bybitSymbol = normalizeSymbol(tvSymbol);
-        MarketSnapshot snapshot = marketState.getSnapshot(bybitSymbol);
+        String bybitSymbol = normalizeSymbol(signal.symbol());
+        MarketSnapshot snapshot = marketState.get(bybitSymbol);
         Decision decision = brain.evaluate(signal, snapshot);
-        telegram.send(formatTelegram(signal, snapshot, decision));
+        sendTelegramAsync(signal, snapshot, decision);
         return ResponseEntity.ok(decision);
     }
 
@@ -61,6 +59,16 @@ public class TradingViewWebhookController {
                 .trim()
                 .toUpperCase()
         ;
+    }
+
+    private void sendTelegramAsync(TradingViewSignal signal, MarketSnapshot snapshot, Decision decision) {
+        new Thread(() -> {
+            try {
+                telegram.send(formatTelegram(signal, snapshot, decision));
+            } catch (Exception e) {
+                System.err.println("Telegram async send failed: " + e.getMessage());
+            }
+        }, "telegram-sender").start();
     }
 
     private String formatTelegram(TradingViewSignal s, MarketSnapshot m, Decision d) {
