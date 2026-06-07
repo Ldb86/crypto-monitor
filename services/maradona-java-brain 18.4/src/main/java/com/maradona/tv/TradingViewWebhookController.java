@@ -40,7 +40,11 @@ public class TradingViewWebhookController {
             return ResponseEntity.status(401).body("bad secret");
         }
 
-        MarketSnapshot snapshot = marketState.get(signal.symbol());
+        String tvSymbol = signal.symbol();
+        String bybitSymbol = marketState.normalizeBybitSymbol(tvSymbol);
+        MarketSnapshot snapshot = marketState.get(bybitSymbol);
+        System.out.println("TV SYMBOL: " + tvSymbol + " -> BYBIT SYMBOL: " + bybitSymbol);
+        System.out.println("BYBIT SNAPSHOT FOUND: " + (snapshot != null));
         Decision decision = brain.evaluate(signal, snapshot);
         telegram.send(formatTelegram(signal, snapshot, decision));
         return ResponseEntity.ok(decision);
@@ -99,5 +103,17 @@ public class TradingViewWebhookController {
     @GetMapping("/status/{symbol}")
     public ResponseEntity<?> status(@PathVariable String symbol) {
         return ResponseEntity.ok(marketState.get(symbol));
+    }
+
+    @GetMapping("/status-normalized/{symbol}")
+    public ResponseEntity<?> statusNormalized(@PathVariable String symbol) {
+        String normalized = marketState.normalizeBybitSymbol(symbol);
+        MarketSnapshot snapshot = marketState.get(normalized);
+        return ResponseEntity.ok(java.util.Map.of(
+                "requested", symbol,
+                "normalized", normalized,
+                "snapshotFound", snapshot != null,
+                "snapshot", snapshot
+        ));
     }
 }
