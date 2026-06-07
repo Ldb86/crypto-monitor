@@ -1,7 +1,7 @@
-//BR => production = node BR.js (04/06/2026) - new message
-//breakTriangle => prod = node breakTriangle.js (---) - fix notification
-//bandaBellinger => prod_2 = node bandaBellinger.js (04/06/2026) - fix EMA5 when ther's real cross -- offline
-//maradona => staging = node (04/06/2026) -  fix dockerfile_4
+//BR => production = node BR.js (04/06/2026) - remove 15m
+//breakTriangle => prod = node breakTriangle.js (---) - fix notification -- offline
+//bandaBellinger => prod_2 = node bandaBellinger.js (04/06/2026) - fix EMA5 when ther's real cross 
+//maradona => staging = node (06/06/2026) -  change BTCUSDT_
 
 
 
