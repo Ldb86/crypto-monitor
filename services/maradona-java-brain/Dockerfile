@@ -1,22 +1,23 @@
-FROM node:18-slim
+FROM eclipse-temurin:17-jdk AS build
 
 WORKDIR /app
 
-# Copia file essenziali
-COPY package.json .
-COPY src/ ./src/
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle .
+COPY settings.gradle .
+COPY src ./src
 
-# Installa dipendenze di produzione
-RUN npm install --production
+RUN chmod +x gradlew
+RUN ./gradlew clean build --no-daemon
 
-# Esponi la porta Railway (PORT)
-ENV NODE_ENV=production
-ENV PORT=3000
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+COPY --from=build /app/build/libs/*.jar app.jar
 
 EXPOSE 3000
+ENV PORT=3000
 
-# Start
-CMD ["node", "src/server.js"]
-
-# Fallback CMD (in caso l'ENTRYPOINT non funzioni)
-##CMD []
+CMD ["java", "-jar", "app.jar"]
