@@ -19,4 +19,4 @@ EXPOSE 3000
 CMD ["node", "src/server.js"]
 
 # Fallback CMD (in caso l'ENTRYPOINT non funzioni)
-CMD []
+##CMD []
