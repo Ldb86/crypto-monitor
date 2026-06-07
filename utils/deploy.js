@@ -1,7 +1,7 @@
-//BR => production = node BR.js (04/06/2026) - remove 15m
+//BR => production = node BR.js (07/06/2026) - remove 15/30m
 //breakTriangle => prod = node breakTriangle.js (---) - fix notification -- offline
-//bandaBellinger => prod_2 = node bandaBellinger.js (04/06/2026) - fix EMA5 when ther's real cross 
-//maradona => staging = node (07/06/2026) -  change Dockerfile_
+//bandaBellinger => prod_2 = node bandaBellinger.js (07/06/2026) - remove some TF
+//maradona => staging = node (07/06/2026) -  maradona new version_
 
 
 
