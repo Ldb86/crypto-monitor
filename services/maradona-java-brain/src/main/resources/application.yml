@@ -8,8 +8,8 @@ maradona:
   telegram:
     botToken: ${TELEGRAM_BOT_TOKEN:}
     chatId: ${TELEGRAM_CHAT_ID:}
-    telegram_enabled: ${TELEGRAM_ENABLED:true}
+    ##telegram_enabled: ${TELEGRAM_ENABLED:true}
   tv:
-    secret: ${TV_WEBHOOK_SECRET:maradona1838}
+    secret: ${MARADONA_SECRET:maradona1838}
   risk:
     maxScoreToNotify: 6
