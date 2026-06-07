@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:8080}
+  port: ${PORT:3000}
 
 maradona:
   symbols: ${SYMBOLS:ETHUSDT,BTCUSDT}
@@ -9,6 +9,6 @@ maradona:
     botToken: ${TELEGRAM_BOT_TOKEN:}
     chatId: ${TELEGRAM_CHAT_ID:}
   tv:
-    secret: ${TV_WEBHOOK_SECRET:change-me}
+    secret: ${TV_WEBHOOK_SECRET:maradona1838}
   risk:
     maxScoreToNotify: 6
