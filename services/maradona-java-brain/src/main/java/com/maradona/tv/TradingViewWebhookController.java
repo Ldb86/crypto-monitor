@@ -40,35 +40,10 @@ public class TradingViewWebhookController {
             return ResponseEntity.status(401).body("bad secret");
         }
 
-        String bybitSymbol = normalizeSymbol(signal.symbol());
-        MarketSnapshot snapshot = marketState.get(bybitSymbol);
+        MarketSnapshot snapshot = marketState.get(signal.symbol());
         Decision decision = brain.evaluate(signal, snapshot);
-        sendTelegramAsync(signal, snapshot, decision);
+        telegram.send(formatTelegram(signal, snapshot, decision));
         return ResponseEntity.ok(decision);
-    }
-
-    private String normalizeSymbol(String symbol) {
-        if (symbol == null) {
-            return "";
-        }
-        return symbol
-                .replace("BYBIT", "")
-                .replace("BINANCE", "")
-                .replace(".P", "")
-                .replace("/", "")
-                .trim()
-                .toUpperCase()
-        ;
-    }
-
-    private void sendTelegramAsync(TradingViewSignal signal, MarketSnapshot snapshot, Decision decision) {
-        new Thread(() -> {
-            try {
-                telegram.send(formatTelegram(signal, snapshot, decision));
-            } catch (Exception e) {
-                System.err.println("Telegram async send failed: " + e.getMessage());
-            }
-        }, "telegram-sender").start();
     }
 
     private String formatTelegram(TradingViewSignal s, MarketSnapshot m, Decision d) {
