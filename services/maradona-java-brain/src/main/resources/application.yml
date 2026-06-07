@@ -6,10 +6,9 @@ maradona:
   bybit:
     wsUrl: ${BYBIT_WS_URL:wss://stream.bybit.com/v5/public/linear}
   telegram:
-    botToken: ${TELEGRAM_BOT_TOKEN:}
-    chatId: ${TELEGRAM_CHAT_ID:}
-    telegram-enabled: ${TELEGRAM_ENABLED:true}
+    botToken: ${TELEGRAM_BOT_TOKEN:${BOT_TOKENS:}}
+    chatId: ${TELEGRAM_CHAT_ID:${CHAT_IDS:}}
   tv:
-    secret: ${TV_WEBHOOK_SECRET:${MARADONA_SECRET:maradona1838}}
+    secret: ${MARADONA_SECRET:maradona1838}
   risk:
     maxScoreToNotify: 6
