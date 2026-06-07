@@ -23,14 +23,20 @@ public class MaradonaProperties {
         public String getWsUrl() { return wsUrl; }
         public void setWsUrl(String wsUrl) { this.wsUrl = wsUrl; }
     }
+
     public static class Telegram {
         private String botToken;
         private String chatId;
+        private boolean telegramEnabled = true;
+
         public String getBotToken() { return botToken; }
         public void setBotToken(String botToken) { this.botToken = botToken; }
         public String getChatId() { return chatId; }
         public void setChatId(String chatId) { this.chatId = chatId; }
+        public boolean isTelegramEnabled() { return telegramEnabled; }
+        public void setTelegramEnabled(boolean telegramEnabled) { this.telegramEnabled = telegramEnabled; }
     }
+
     public static class Tv {
         private String secret;
         public String getSecret() { return secret; }
