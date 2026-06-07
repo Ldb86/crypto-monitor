@@ -12,6 +12,9 @@ import com.maradona.telegram.TelegramNotifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
 @RestController
 @RequestMapping("/webhook")
 public class TradingViewWebhookController {
@@ -22,7 +25,10 @@ public class TradingViewWebhookController {
     private final ObjectMapper mapper = new ObjectMapper();
 
     public TradingViewWebhookController(MaradonaProperties props, MarketState marketState, MaradonaBrain brain, TelegramNotifier telegram) {
-        this.props = props; this.marketState = marketState; this.brain = brain; this.telegram = telegram;
+        this.props = props;
+        this.marketState = marketState;
+        this.brain = brain;
+        this.telegram = telegram;
     }
 
     @PostMapping("/tradingview")
@@ -31,23 +37,52 @@ public class TradingViewWebhookController {
         try {
             signal = mapper.readValue(body, TradingViewSignal.class);
         } catch (Exception e) {
-            telegram.send("⚠️ MARADONA WEBHOOK NON JSON\nRicevuto:\n" + body + "\n\nServe JSON Pine/TradingView per Entry/SL/TP.");
-            return ResponseEntity.badRequest().body("body must be JSON");
+            System.out.println("WEBHOOK NON JSON: " + e.getMessage());
+            CompletableFuture.runAsync(() -> telegram.send("⚠️ MARADONA WEBHOOK NON JSON\nRicevuto:\n" + body + "\n\nServe JSON Pine/TradingView per Entry/SL/TP."));
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "error", "body must be JSON"));
         }
 
         if (props.getTv().getSecret() != null && !props.getTv().getSecret().isBlank()
                 && !props.getTv().getSecret().equals(signal.secret())) {
-            return ResponseEntity.status(401).body("bad secret");
+            return ResponseEntity.status(401).body(Map.of("ok", false, "error", "bad secret"));
         }
 
-        String tvSymbol = signal.symbol();
-        String bybitSymbol = marketState.normalizeBybitSymbol(tvSymbol);
-        MarketSnapshot snapshot = marketState.get(bybitSymbol);
-        System.out.println("TV SYMBOL: " + tvSymbol + " -> BYBIT SYMBOL: " + bybitSymbol);
-        System.out.println("BYBIT SNAPSHOT FOUND: " + (snapshot != null));
-        Decision decision = brain.evaluate(signal, snapshot);
-        telegram.send(formatTelegram(signal, snapshot, decision));
-        return ResponseEntity.ok(decision);
+        final TradingViewSignal asyncSignal = signal;
+        CompletableFuture.runAsync(() -> processSignal(asyncSignal));
+
+        return ResponseEntity.ok(Map.of(
+                "ok", true,
+                "received", true,
+                "symbol", signal.symbol() == null ? "" : signal.symbol(),
+                "signal", signal.safeSignal()
+        ));
+    }
+
+    private void processSignal(TradingViewSignal signal) {
+        try {
+            System.out.println("WEBHOOK ASYNC START: " + signal.symbol() + " " + signal.safeSignal());
+
+            String tvSymbol = signal.symbol();
+            String bybitSymbol = marketState.normalizeBybitSymbol(tvSymbol);
+            MarketSnapshot snapshot = marketState.get(bybitSymbol);
+
+            System.out.println("TV SYMBOL: " + tvSymbol + " -> BYBIT SYMBOL: " + bybitSymbol);
+            System.out.println("BYBIT SNAPSHOT FOUND: " + (snapshot != null));
+
+            Decision decision = brain.evaluate(signal, snapshot);
+            System.out.println("Brain: " + signal.brain());
+
+            telegram.send(formatTelegram(signal, snapshot, decision));
+            System.out.println("WEBHOOK ASYNC END: " + signal.symbol() + " " + signal.safeSignal());
+        } catch (Exception e) {
+            System.out.println("WEBHOOK ASYNC ERROR: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                telegram.send("⚠️ MARADONA SERVER ERROR\n" + e.getMessage());
+            } catch (Exception ignored) {
+                System.out.println("TELEGRAM ERROR DURANTE SERVER ERROR: " + ignored.getMessage());
+            }
+        }
     }
 
     private String formatTelegram(TradingViewSignal s, MarketSnapshot m, Decision d) {
