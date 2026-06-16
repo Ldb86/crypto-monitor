@@ -1,105 +1,142 @@
-# Maradona Java Brain — V0.2 Alert Sync
+# Maradona Java Brain v0.4.7F - Event-Driven AutoCluster + Forex/TradFi Mode
 
-Questo server fonde:
+Baseline di partenza: Java 0.4.7 Event-Driven AutoCluster A/B/C.
 
-- TradingView V18.3.5+ = PRE / READY / MASTER / WARNING / FLIP
-- Bybit WebSocket = orderbook reale + public trades + delta proxy
-- Telegram = notifica finale ENTRY VALIDATA / BLOCCATA / WARNING
+## Cosa aggiunge questa variante 0.4.7F
 
-## Variabili Railway
+- Mantiene invariata la logica crypto BTC/ETH: Bybit + Binance + OKX con filtro 2-of-3.
+- Aggiunge modalita Forex/TradFi separata: `FOREX_MODE=BYBIT_ONLY`.
+- Per i simboli forex/TradFi configurati, Binance e OKX non vengono usati per il voto.
+- Bybit resta la fonte principale; Java applica score piu severo per compensare il fatto che non c'e il 2/3 multi-exchange.
+- READY/PRE/WARNING restano segnali nascosti: svegliano AutoCluster e aggiornano la mappa, ma non mandano Telegram operativo.
+- MASTER forex/TradFi manda Telegram solo se Bybit conferma con score minimo e spread entro soglia.
+
+## Variabili principali
+
+```env
+FOREX_ENABLED=false
+FOREX_MODE=BYBIT_ONLY
+FOREX_SYMBOLS=EURUSDT,GBPUSDT,XAUUSDT
+FOREX_MIN_BYBIT_SCORE=4
+FOREX_MAX_SPREAD_PCT=0.12
+FOREX_NOTIFY_REJECTED=false
+```
+
+Per attivarlo in test:
+
+```env
+FOREX_ENABLED=true
+FOREX_SYMBOLS=EURUSDT,GBPUSDT,XAUUSDT
+```
+
+Nota: verificare su Bybit che i simboli forex/TradFi scelti siano disponibili nello stesso stream/orderbook usato dal servizio. Se Bybit TradFi/MT5 richiede endpoint diverso, il codice e' gia separato logicamente ma servirà un client dati dedicato.
+
+## Log da controllare
+
+Crypto:
 
 ```text
-TV_WEBHOOK_SECRET=scegli-tu
-SYMBOLS=ETHUSDT,BTCUSDT
-TELEGRAM_BOT_TOKEN=token_bot
-TELEGRAM_CHAT_ID=chat_id
-BYBIT_WS_URL=wss://stream.bybit.com/v5/public/linear
+Liquidity: CONFIRMED_2_OF_3
+Liquidity: REJECTED_2_OF_3
 ```
 
-## Webhook TradingView
-
-URL:
+Forex/TradFi:
 
 ```text
-https://maradona-1838-staging.up.railway.app/webhook/tradingview
+FOREX ENGINE: BYBIT_ONLY CONFERMA
+FOREX_BYBIT_ONLY_CONFIRMED
+FOREX NON NOTIFICATO
+FOREX_WAIT_BYBIT
+FOREX_SPREAD_BLOCKED
 ```
 
-Metodo: POST JSON.
+## Regola operativa
 
-## Messaggio JSON consigliato negli alert Pine/TradingView
+- Crypto: 2/3 exchange = conferma.
+- Forex/TradFi: Bybit-only con soglia severa, piu AutoCluster, pivot stimato, SL retail stimato e no-chase.
+- In futuro: aggiungere Dukascopy e poi FXCM/OANDA se accessibili per creare `FOREX_CONFIRMED_2_OF_3`.
 
-Quando colleghiamo TradingView a Java, il messaggio deve essere JSON, non solo `MARADONA ALERT`.
+## v0.4.7D-F - Retail Liquidity Pool vs Our SL Fix
 
-```json
-{
-  "secret":"maradona1838",
-  "symbol":"{{ticker}}",
-  "tf":"{{interval}}",
-  "signal":"MASTER_SHORT",
-  "side":"SHORT",
-  "entry":2078.48,
-  "entryRangeLow":2078.48,
-  "entryRangeHigh":2088.50,
-  "noChaseBelow":2062.00,
-  "sl":2127.84,
-  "tp1":2063,
-  "tp2":2031,
-  "tp3":2007,
-  "score":12,
-  "brain":"WAIT S 7/3",
-  "entryType":"BREAKDOWN_CONFIRM",
-  "compression":"SOFT",
-  "mtf":"12H SHORT",
-  "htf":"HTF BEAR",
-  "macd":"MACD SHORT"
-}
+Questa patch corregge la logica della mappa operativa AutoCluster:
+
+- `Retail liquidity pool` = zona dove probabilmente stanno gli stop retail da cacciare/sweeppare.
+- `SL TradingView` = stop ricevuto dal payload TradingView.
+- `Our SL protettivo stimato` = livello informativo oltre la liquidity pool, con buffer.
+
+Regola operativa:
+
+- LONG: il nostro SL non deve coincidere con la massa degli stop retail; deve stare sotto il retail liquidity pool con buffer.
+- SHORT: il nostro SL non deve coincidere con la massa degli stop retail; deve stare sopra il retail liquidity pool con buffer.
+- Se lo SL TradingView coincide o è troppo vicino al retail liquidity pool, Telegram stampa un warning.
+
+La patch mantiene:
+
+- Crypto BTC/ETH multi-exchange Bybit + Binance + OKX.
+- AutoCluster Event-Driven 0.4.7 A/B/C.
+- Forex BYBIT_ONLY 0.4.7F, ancora da testare.
+- READY/PRE/WARNING come segnali nascosti/solo Brain se configurati così.
+
+## v0.4.7E/G/I - Patch pulita post-test 16 giugno
+
+Questa patch aggiunge tre correzioni operative emerse dai test Telegram/log:
+
+### 0.4.7E - Telegram Clean Notification Filter
+
+- Telegram invia solo segnali operativi confermati.
+- READY/PRE/MONITOR/MICRO_TABLE_RESET/SL_RESET restano log-only.
+- MASTER WATCH e MASTER NON CONFERMATO restano log-only di default.
+- MASTER_LONG/MASTER_SHORT arrivano solo se liquidity engine conferma 2/3 o 3/3.
+- MASTER_PELE_MICRO_GZ_LONG/SHORT arrivano solo se liquidity engine conferma 2/3 o 3/3.
+
+Variabili:
+
+```env
+NOTIFY_READY=false
+NOTIFY_PRE=false
+NOTIFY_WARNING=false
+NOTIFY_MONITOR=false
+NOTIFY_MICRO_TABLE_RESET=false
+NOTIFY_SL_RESET=false
+NOTIFY_MASTER_WATCH=false
+NOTIFY_MASTER_REJECTED=false
 ```
 
-## Cosa fa la V0.2
+### 0.4.7G - AutoCluster 3 above / 3 below
 
-- PRE / READY = monitor, nessuna entry.
-- MASTER = Java confronta con Bybit flow.
-- Se Bybit conferma: `ENTRY_VALIDATED_LONG/SHORT`.
-- Se Bybit non conferma: `ENTRY_BLOCKED_LONG/SHORT`.
-- Dopo MASTER, un PRE opposto diventa `WARNING_PROTECT`, non nuovo trade opposto.
-- FLIP viene validato solo se anche Bybit conferma.
+- AutoCluster prova a produrre sempre 3 livelli sopra e 3 sotto.
+- Se il book non fornisce abbastanza muri forti, vengono aggiunti livelli fallback a score basso (`PRICE_LADDER_FILL`) solo per completare la mappa operativa.
+- I livelli forti da exchange restano prioritari.
 
-## Endpoint stato
+### 0.4.7D-2 - Directional Our SL Validation
+
+- LONG: Our SL deve stare sotto entry.
+- SHORT: Our SL deve stare sopra entry.
+- Se il pool retail è dalla parte sbagliata, non viene usato come stop pool ma come target/protezione informativa.
+- Se Our SL non è direzionale, Telegram lo segnala come non valido/non calcolabile.
+
+### 0.4.7I - Manual Coinglass Cluster Hit Alert
+
+Quando un livello manuale impostato con `/setcg` viene raggiunto/toccato, Java invia una notifica una sola volta:
 
 ```text
-GET /webhook/status/ETHUSDT
-GET /webhook/status/BTCUSDT
+CLUSTER MANUALE RAGGIUNTO / CONSUMATO
+PAIR: BTCUSDT
+LIVELLO: 65418.0000
+TIPO: ABOVE 1
+AZIONE: Aggiornare heatmap e /setcg BTC
 ```
 
-## Nota importante
+Il livello viene marcato consumato/dirty e non viene notificato di nuovo fino al prossimo `/setcg`.
 
-Per ora è modalità decision/notifica. Non apre ordini reali.
+## v0.4.7J - Duplicate / overlap filter Pelé vs Maradona
 
-## v0.3 Target Guard Update
+Aggiunto filtro anti-doppia esposizione per segnali confermati sullo stesso symbol/timeframe/direzione.
+Se un MASTER_PELE_MICRO_GZ e un MASTER Maradona normale arrivano sulla stessa area prezzi, Java non invia una seconda entry completa: invia al massimo una nota breve di confluenza/duplicato.
 
-Questa versione aggiunge il controllo direzionale dei TP ricevuti da TradingView:
-
-- MASTER SHORT: TP1/TP2/TP3 devono stare sotto ENTRY.
-- MASTER LONG: TP1/TP2/TP3 devono stare sopra ENTRY.
-- Se un TP è dalla parte sbagliata, Telegram mostra `TP VALIDATION` e il Brain non lo considera entry automatica validata: diventa `MASTER WATCH - TP DA CORREGGERE`.
-- I TP coerenti vengono riorganizzati da vicino a lontano e mostrati come target suggeriti.
-
-Esempio rilevato nel test:
-
-```text
-BTCUSDT.P MASTER SHORT
-ENTRY: 76030.4
-TP1: 76297.1  <-- invalido perché sopra entry
-TP2: 75347.6  <-- valido
-TP3: 74398.1  <-- valido
-```
-
-Telegram avviserà che TP1 è incoerente e proporrà i TP validi riorganizzati.
-
-
-## v0.4 Entry Range / No Chase
-Java ora accetta anche:
-- entryRangeLow / entryRangeHigh
-- noChaseAbove / noChaseBelow
-
-Questi campi servono quando perdi una notifica: non devi inseguire il prezzo, ma valutare retest/pullback e livello no-chase.
+Variabili:
+- NOTIFY_DUPLICATE_OVERLAP=true
+- SUPPRESS_DUPLICATE_ENTRIES=true
+- DUPLICATE_OVERLAP_WINDOW_MINUTES=90
+- DUPLICATE_ENTRY_DISTANCE_PCT=0.30
+- DUPLICATE_RANGE_OVERLAP_PCT=50

@@ -10,5 +10,9 @@ public record MarketSnapshot(
         double deltaProxy,
         double velocity,
         double spreadPct,
+        double strongestBidPrice,
+        double strongestBidQty,
+        double strongestAskPrice,
+        double strongestAskQty,
         Instant time
 ) {}
