@@ -59,16 +59,22 @@ public class MaradonaProperties {
 
     private String normalizeSymbol(String symbol) {
         if (symbol == null) return "";
-        return symbol.replace("BYBIT:", "")
+        String n = symbol.replace("BYBIT:", "")
                 .replace("BINANCE:", "")
                 .replace("OKX:", "")
+                .replace("OANDA:", "")
+                .replace("FXCM:", "")
+                .replace("DUKASCOPY:", "")
                 .replace(".P", "")
                 .replace("PERP", "")
                 .replace("/", "")
+                .replace("_", "")
                 .replace("-USDT-SWAP", "USDT")
                 .replace("-", "")
                 .trim()
                 .toUpperCase(Locale.ROOT);
+        if (n.endsWith("USD") && !n.endsWith("USDT")) n = n + "T";
+        return n;
     }
 
 
@@ -113,11 +119,17 @@ public class MaradonaProperties {
     public static class Forex {
         private boolean enabled = false;
         private String mode = "BYBIT_ONLY";
-        private List<String> symbols = List.of("EURUSDT", "GBPUSDT", "XAUUSDT");
+        private List<String> symbols = List.of("XAUUSDT");
         private int minBybitScore = 4;
         private double maxSpreadPct = 0.12;
         private int confidencePenalty = 18;
         private boolean notifyRejected = false;
+        private boolean multiProviderEnabled = false;
+        private int requiredConfirmations = 2;
+        private String providerMode = "BYBIT_DUKASCOPY_OANDA";
+        private Provider dukascopy = new Provider();
+        private Provider oanda = new Provider();
+        private Provider fxcm = new Provider();
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -133,6 +145,43 @@ public class MaradonaProperties {
         public void setConfidencePenalty(int confidencePenalty) { this.confidencePenalty = confidencePenalty; }
         public boolean isNotifyRejected() { return notifyRejected; }
         public void setNotifyRejected(boolean notifyRejected) { this.notifyRejected = notifyRejected; }
+        public boolean isMultiProviderEnabled() { return multiProviderEnabled; }
+        public void setMultiProviderEnabled(boolean multiProviderEnabled) { this.multiProviderEnabled = multiProviderEnabled; }
+        public int getRequiredConfirmations() { return requiredConfirmations; }
+        public void setRequiredConfirmations(int requiredConfirmations) { this.requiredConfirmations = requiredConfirmations; }
+        public String getProviderMode() { return providerMode; }
+        public void setProviderMode(String providerMode) { this.providerMode = providerMode; }
+        public Provider getDukascopy() { return dukascopy; }
+        public void setDukascopy(Provider dukascopy) { this.dukascopy = dukascopy; }
+        public Provider getOanda() { return oanda; }
+        public void setOanda(Provider oanda) { this.oanda = oanda; }
+        public Provider getFxcm() { return fxcm; }
+        public void setFxcm(Provider fxcm) { this.fxcm = fxcm; }
+
+        public static class Provider {
+            private boolean enabled = false;
+            private List<String> symbols = List.of("XAUUSD", "EURUSD");
+            private int minScore = 4;
+            private String url = "";
+            private String token = "";
+            private String accountId = "";
+            private int pollSeconds = 20;
+
+            public boolean isEnabled() { return enabled; }
+            public void setEnabled(boolean enabled) { this.enabled = enabled; }
+            public List<String> getSymbols() { return symbols; }
+            public void setSymbols(List<String> symbols) { this.symbols = symbols; }
+            public int getMinScore() { return minScore; }
+            public void setMinScore(int minScore) { this.minScore = minScore; }
+            public String getUrl() { return url; }
+            public void setUrl(String url) { this.url = url; }
+            public String getToken() { return token; }
+            public void setToken(String token) { this.token = token; }
+            public String getAccountId() { return accountId; }
+            public void setAccountId(String accountId) { this.accountId = accountId; }
+            public int getPollSeconds() { return pollSeconds; }
+            public void setPollSeconds(int pollSeconds) { this.pollSeconds = pollSeconds; }
+        }
     }
 
     public static class AutoCluster {

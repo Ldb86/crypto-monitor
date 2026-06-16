@@ -10,6 +10,7 @@ import com.maradona.core.MaradonaBrain;
 import com.maradona.core.SignalOverlapService;
 import com.maradona.core.TargetValidation;
 import com.maradona.liquidity.LiquidityVoteEngine;
+import com.maradona.forex.ForexProviderService;
 import com.maradona.model.ExchangeSnapshot;
 import com.maradona.model.LiquidityDecision;
 import com.maradona.model.MarketSnapshot;
@@ -33,12 +34,14 @@ public class TradingViewWebhookController {
     private final CoinglassManualService coinglass;
     private final AutoClusterService autoClusters;
     private final SignalOverlapService overlapService;
+    private final ForexProviderService forexProviderService;
     private final TelegramNotifier telegram;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public TradingViewWebhookController(MaradonaProperties props, MarketState marketState, MaradonaBrain brain,
                                         LiquidityVoteEngine liquidityVoteEngine, CoinglassManualService coinglass,
-                                        AutoClusterService autoClusters, SignalOverlapService overlapService, TelegramNotifier telegram) {
+                                        AutoClusterService autoClusters, SignalOverlapService overlapService,
+                                        ForexProviderService forexProviderService, TelegramNotifier telegram) {
         this.props = props;
         this.marketState = marketState;
         this.brain = brain;
@@ -46,6 +49,7 @@ public class TradingViewWebhookController {
         this.coinglass = coinglass;
         this.autoClusters = autoClusters;
         this.overlapService = overlapService;
+        this.forexProviderService = forexProviderService;
         this.telegram = telegram;
     }
 
@@ -457,6 +461,28 @@ public class TradingViewWebhookController {
 
     private String n(String v) { return v == null || v.isBlank() ? "-" : v; }
     private String round(double v) { return String.format(java.util.Locale.US, "%.4f", v); }
+
+
+    @PostMapping("/forex/provider")
+    public ResponseEntity<?> receiveForexProviderQuote(@RequestBody Map<String, Object> body) {
+        String provider = String.valueOf(body.getOrDefault("provider", "EXTERNAL"));
+        String symbol = String.valueOf(body.getOrDefault("symbol", ""));
+        double bid = asDouble(body.get("bid"));
+        double ask = asDouble(body.get("ask"));
+        double deltaBias = asDouble(body.get("deltaBias"));
+        if (symbol.isBlank() || bid <= 0 || ask <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "error", "provider/symbol/bid/ask required"));
+        }
+        forexProviderService.publishQuote(provider, symbol, bid, ask, deltaBias);
+        return ResponseEntity.ok(Map.of("ok", true, "provider", provider, "symbol", symbol));
+    }
+
+    private double asDouble(Object o) {
+        if (o instanceof Number n) return n.doubleValue();
+        if (o == null) return 0.0;
+        try { return Double.parseDouble(String.valueOf(o)); } catch (Exception e) { return 0.0; }
+    }
+
 
     @GetMapping("/status/{symbol}")
     public ResponseEntity<?> status(@PathVariable String symbol) {

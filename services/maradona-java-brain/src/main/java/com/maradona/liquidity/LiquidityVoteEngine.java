@@ -70,6 +70,58 @@ public class LiquidityVoteEngine {
     }
 
     private LiquidityDecision evaluateForexBybitOnly(TradingViewSignal signal, Collection<ExchangeSnapshot> snapshots, String direction) {
+        if (props.getForex().isMultiProviderEnabled()) {
+            return evaluateForexMultiProvider(signal, snapshots, direction);
+        }
+        return evaluateForexSingleBybit(signal, snapshots, direction);
+    }
+
+    private LiquidityDecision evaluateForexMultiProvider(TradingViewSignal signal, Collection<ExchangeSnapshot> snapshots, String direction) {
+        List<ExchangeVote> votes = new ArrayList<>();
+        if (snapshots != null) {
+            for (ExchangeSnapshot snap : snapshots) {
+                if (snap == null || snap.market() == null) continue;
+                String ex = snap.exchange() == null ? "" : snap.exchange().toUpperCase(Locale.ROOT);
+                if (!(ex.equals("BYBIT") || ex.equals("DUKASCOPY") || ex.equals("OANDA") || ex.equals("FXCM"))) continue;
+                ExchangeVote raw = vote(direction, snap);
+                votes.add(applyProviderThreshold(raw, snap));
+            }
+        }
+        int available = votes.size();
+        int confirms = (int) votes.stream().filter(v -> "CONFIRM".equals(v.vote())).count();
+        int contrary = (int) votes.stream().filter(v -> "CONTRA".equals(v.vote())).count();
+        int required = Math.max(2, props.getForex().getRequiredConfirmations());
+        boolean confirmed = confirms >= required;
+
+        if (available < required) {
+            return new LiquidityDecision(false, confirms, available, contrary, direction,
+                    "FOREX_WAIT_PROVIDERS",
+                    "FOREX ENGINE: ATTESA PROVIDER " + available + "/" + required,
+                    "Forex multi-provider attivo, ma servono almeno " + required + " fonti tra Bybit/Dukascopy/OANDA/FXCM.",
+                    votes);
+        }
+        if (confirmed) {
+            return new LiquidityDecision(true, confirms, available, contrary, direction,
+                    "FOREX_CONFIRMED_2_OF_3",
+                    "FOREX ENGINE: CONFERMA " + direction + " " + confirms + "/" + available,
+                    "Almeno " + required + " provider forex confermano direzione e pressione coerente.",
+                    votes);
+        }
+        if (contrary >= required) {
+            return new LiquidityDecision(false, confirms, available, contrary, direction,
+                    "FOREX_REJECTED_2_OF_3",
+                    "FOREX ENGINE: NON CONFERMA " + direction,
+                    "Almeno " + required + " provider forex sono contrari al segnale.",
+                    votes);
+        }
+        return new LiquidityDecision(false, confirms, available, contrary, direction,
+                "FOREX_NEUTRAL",
+                "FOREX ENGINE: NEUTRO " + confirms + "/" + available,
+                "Conferma forex multi-provider insufficiente: meglio non inviare notifica operativa aggressiva.",
+                votes);
+    }
+
+    private LiquidityDecision evaluateForexSingleBybit(TradingViewSignal signal, Collection<ExchangeSnapshot> snapshots, String direction) {
         List<ExchangeVote> votes = new ArrayList<>();
         ExchangeSnapshot bybit = null;
         if (snapshots != null) {
@@ -114,9 +166,28 @@ public class LiquidityVoteEngine {
         } else {
             status = "FOREX_BYBIT_ONLY_NEUTRAL";
             friendly = "FOREX ENGINE: BYBIT_ONLY NEUTRO " + v.score();
-            reason = "Score Bybit insufficiente per compensare l'assenza di Binance/OKX.";
+            reason = "Score Bybit insufficiente per compensare l'assenza degli altri provider forex.";
         }
         return new LiquidityDecision(confirmed, confirmed ? 1 : 0, 1, contrary ? 1 : 0, direction, status, friendly, reason, votes);
+    }
+
+    private ExchangeVote applyProviderThreshold(ExchangeVote raw, ExchangeSnapshot snap) {
+        if (raw == null || snap == null) return raw;
+        String ex = snap.exchange() == null ? "" : snap.exchange().toUpperCase(Locale.ROOT);
+        int min = switch (ex) {
+            case "BYBIT" -> props.getForex().getMinBybitScore();
+            case "DUKASCOPY" -> props.getForex().getDukascopy().getMinScore();
+            case "OANDA" -> props.getForex().getOanda().getMinScore();
+            case "FXCM" -> props.getForex().getFxcm().getMinScore();
+            default -> 4;
+        };
+        boolean spreadOk = snap.market() == null || snap.market().spreadPct() <= Math.max(0.01, props.getForex().getMaxSpreadPct());
+        if ("CONFIRM".equals(raw.vote()) && (raw.score() < min || !spreadOk)) {
+            String reason = raw.reason() + (raw.score() < min ? " score sotto soglia " + min + "; " : "")
+                    + (!spreadOk ? "spread oltre soglia forex; " : "");
+            return new ExchangeVote(raw.exchange(), "NEUTRAL", raw.score(), reason);
+        }
+        return raw;
     }
 
     private ExchangeVote vote(String direction, ExchangeSnapshot snap) {

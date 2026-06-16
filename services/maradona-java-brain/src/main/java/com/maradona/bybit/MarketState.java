@@ -56,17 +56,24 @@ public class MarketState {
 
     public String normalizeBybitSymbol(String symbol) {
         if (symbol == null) return "";
-        return symbol
+        String n = symbol
                 .replace("BYBIT:", "")
                 .replace("BINANCE:", "")
                 .replace("OKX:", "")
+                .replace("OANDA:", "")
+                .replace("FXCM:", "")
+                .replace("DUKASCOPY:", "")
                 .replace(".P", "")
                 .replace("PERP", "")
                 .replace("/", "")
+                .replace("_", "")
                 .replace("-USDT-SWAP", "USDT")
                 .replace("-", "")
                 .trim()
                 .toUpperCase(Locale.ROOT);
+        // Forex/metal cross mapping: TradingView may send XAUUSD/EURUSD while Bybit uses XAUUSDT/EURUSDT.
+        if (n.endsWith("USD") && !n.endsWith("USDT")) n = n + "T";
+        return n;
     }
 
     private String normalizeExchange(String exchange) {
