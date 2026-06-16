@@ -50,7 +50,7 @@ public class BybitWebSocketClient extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         this.session = session;
-        List<String> args = props.getSymbols().stream()
+        List<String> args = props.symbolsForBybit().stream()
                 .flatMap(s -> List.of("orderbook.50." + s, "publicTrade." + s, "allLiquidation." + s).stream())
                 .toList();
         String msg = mapper.writeValueAsString(new Subscribe("subscribe", args));
@@ -118,7 +118,28 @@ public class BybitWebSocketClient extends TextWebSocketHandler {
         double td = tradeDelta.getOrDefault(symbol, 0.0);
         double deltaProxy = bookImbalance + td;
         double velocity = Math.abs(bookImbalance) / Math.max(1.0, bidQty + askQty);
-        state.put(new MarketSnapshot(symbol, mid, bidQty, askQty, deltaProxy, velocity, spreadPct, Instant.now()));
+
+        Map.Entry<Double, Double> strongestBid = strongestLevel(b, mid, false);
+        Map.Entry<Double, Double> strongestAsk = strongestLevel(a, mid, true);
+        double strongestBidPrice = strongestBid == null ? 0.0 : strongestBid.getKey();
+        double strongestBidQty = strongestBid == null ? 0.0 : strongestBid.getValue();
+        double strongestAskPrice = strongestAsk == null ? 0.0 : strongestAsk.getKey();
+        double strongestAskQty = strongestAsk == null ? 0.0 : strongestAsk.getValue();
+
+        state.put("BYBIT", new MarketSnapshot(symbol, mid, bidQty, askQty, deltaProxy, velocity, spreadPct,
+                strongestBidPrice, strongestBidQty, strongestAskPrice, strongestAskQty, Instant.now()));
+    }
+
+    private Map.Entry<Double, Double> strongestLevel(NavigableMap<Double, Double> book, double mid, boolean askSide) {
+        if (book == null || book.isEmpty() || mid <= 0) return null;
+        double maxDistancePct = 1.25; // wall utile vicino al prezzo, non lontano fuori mercato
+        Map.Entry<Double, Double> best = null;
+        for (Map.Entry<Double, Double> e : book.entrySet()) {
+            double distancePct = Math.abs(e.getKey() - mid) / mid * 100.0;
+            if (distancePct > maxDistancePct) continue;
+            if (best == null || e.getValue() > best.getValue()) best = e;
+        }
+        return best;
     }
 
     private record Subscribe(String op, List<String> args) {}

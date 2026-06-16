@@ -5,10 +5,57 @@ maradona:
   symbols: ${SYMBOLS:ETHUSDT,BTCUSDT}
   bybit:
     wsUrl: ${BYBIT_WS_URL:wss://stream.bybit.com/v5/public/linear}
+  binance:
+    enabled: ${BINANCE_ENABLED:true}
+    wsUrl: ${BINANCE_WS_URL:wss://fstream.binance.com/ws}
+  okx:
+    enabled: ${OKX_ENABLED:true}
+    wsUrl: ${OKX_WS_URL:wss://ws.okx.com:8443/ws/v5/public}
+  multiExchange:
+    enabled: ${MULTI_EXCHANGE_ENABLED:true}
+    requiredConfirmations: ${MULTI_EXCHANGE_REQUIRED_CONFIRMATIONS:2}
+    notifyRejectedMicroGz: ${NOTIFY_REJECTED_MICRO_GZ:false}
+  forex:
+    enabled: ${FOREX_ENABLED:false}
+    mode: ${FOREX_MODE:BYBIT_ONLY}
+    symbols: ${FOREX_SYMBOLS:EURUSDT,GBPUSDT,XAUUSDT}
+    minBybitScore: ${FOREX_MIN_BYBIT_SCORE:4}
+    maxSpreadPct: ${FOREX_MAX_SPREAD_PCT:0.12}
+    confidencePenalty: ${FOREX_CONFIDENCE_PENALTY:18}
+    notifyRejected: ${FOREX_NOTIFY_REJECTED:false}
+  autoCluster:
+    enabled: ${AUTO_CLUSTER_ENABLED:true}
+    mode: ${AUTO_CLUSTER_MODE:ON_SIGNAL}
+    ttlMinutes: ${AUTO_CLUSTER_TTL_MINUTES:60}
+    dynamicTtlEnabled: ${AUTO_CLUSTER_DYNAMIC_TTL_ENABLED:true}
+    cooldownMinutes: ${AUTO_CLUSTER_COOLDOWN_MINUTES:30}
+    refreshOnPriceMovePercent: ${AUTO_CLUSTER_REFRESH_ON_PRICE_MOVE_PERCENT:0.5}
+    levelsAbove: ${AUTO_CLUSTER_LEVELS_ABOVE:3}
+    levelsBelow: ${AUTO_CLUSTER_LEVELS_BELOW:3}
+    maxCandles: ${AUTO_CLUSTER_MAX_CANDLES:100}
+    maxDistancePct: ${AUTO_CLUSTER_MAX_DISTANCE_PCT:2.5}
+    mergeTolerancePct: ${AUTO_CLUSTER_MERGE_TOLERANCE_PCT:0.20}
+  notifications:
+    notifyReady: ${NOTIFY_READY:false}
+    notifyPre: ${NOTIFY_PRE:false}
+    notifyWarning: ${NOTIFY_WARNING:false}
+    notifyOther: ${NOTIFY_OTHER:false}
+    notifyMonitor: ${NOTIFY_MONITOR:false}
+    notifyMicroTableReset: ${NOTIFY_MICRO_TABLE_RESET:false}
+    notifySlReset: ${NOTIFY_SL_RESET:false}
+    notifyMasterWatch: ${NOTIFY_MASTER_WATCH:false}
+    notifyMasterRejected: ${NOTIFY_MASTER_REJECTED:false}
+    notifyTpSl: ${NOTIFY_TP_SL:true}
+    notifyProtectWarningActiveTrade: ${NOTIFY_PROTECT_WARNING_ACTIVE_TRADE:true}
+    notifyDuplicateOverlap: ${NOTIFY_DUPLICATE_OVERLAP:true}
+    suppressDuplicateEntries: ${SUPPRESS_DUPLICATE_ENTRIES:true}
+    duplicateOverlapWindowMinutes: ${DUPLICATE_OVERLAP_WINDOW_MINUTES:90}
+    duplicateEntryDistancePct: ${DUPLICATE_ENTRY_DISTANCE_PCT:0.30}
+    duplicateRangeOverlapPct: ${DUPLICATE_RANGE_OVERLAP_PCT:50}
   telegram:
-    botToken: ${TELEGRAM_BOT_TOKEN:${BOT_TOKENS:}}
-    chatId: ${TELEGRAM_CHAT_ID:${CHAT_IDS:}}
+    botToken: ${TELEGRAM_BOT_TOKEN:}
+    chatId: ${TELEGRAM_CHAT_ID:}
+    telegramEnabled: ${TELEGRAM_ENABLED:true}
+    commandPollingEnabled: ${TELEGRAM_COMMAND_POLLING_ENABLED:true}
   tv:
-    secret: ${MARADONA_SECRET:maradona1838}
-  risk:
-    maxScoreToNotify: 6
+    secret: ${TV_WEBHOOK_SECRET:${MARADONA_SECRET:maradona1838}}

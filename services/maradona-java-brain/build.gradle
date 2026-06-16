@@ -5,13 +5,9 @@ plugins {
 }
 
 group = 'com.maradona'
-version = '0.0.1-SNAPSHOT'
+version = '0.4.7D-F-retail-liquidity-sl-fix'
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
-
-bootJar {
-    archiveFileName.set('maradona-java-brain-0.0.1-SNAPSHOT.jar')
-}
 
 repositories { mavenCentral() }
 
