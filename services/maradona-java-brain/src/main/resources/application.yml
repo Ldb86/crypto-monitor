@@ -18,11 +18,36 @@ maradona:
   forex:
     enabled: ${FOREX_ENABLED:false}
     mode: ${FOREX_MODE:BYBIT_ONLY}
-    symbols: ${FOREX_SYMBOLS:EURUSDT,GBPUSDT,XAUUSDT}
+    symbols: ${FOREX_SYMBOLS:XAUUSDT}
     minBybitScore: ${FOREX_MIN_BYBIT_SCORE:4}
     maxSpreadPct: ${FOREX_MAX_SPREAD_PCT:0.12}
     confidencePenalty: ${FOREX_CONFIDENCE_PENALTY:18}
     notifyRejected: ${FOREX_NOTIFY_REJECTED:false}
+    multiProviderEnabled: ${FOREX_MULTI_PROVIDER_ENABLED:false}
+    requiredConfirmations: ${FOREX_REQUIRED_CONFIRMATIONS:2}
+    providerMode: ${FOREX_PROVIDER_MODE:BYBIT_DUKASCOPY_OANDA}
+    dukascopy:
+      enabled: ${DUKASCOPY_ENABLED:false}
+      symbols: ${DUKASCOPY_SYMBOLS:XAUUSD,EURUSD}
+      minScore: ${DUKASCOPY_MIN_SCORE:4}
+      url: ${DUKASCOPY_URL:}
+      token: ${DUKASCOPY_API_KEY:}
+      pollSeconds: ${DUKASCOPY_POLL_SECONDS:20}
+    oanda:
+      enabled: ${OANDA_ENABLED:false}
+      symbols: ${OANDA_SYMBOLS:XAUUSD,EURUSD}
+      minScore: ${OANDA_MIN_SCORE:4}
+      url: ${OANDA_API_URL:https://api-fxpractice.oanda.com}
+      token: ${OANDA_API_TOKEN:}
+      accountId: ${OANDA_ACCOUNT_ID:}
+      pollSeconds: ${OANDA_POLL_SECONDS:20}
+    fxcm:
+      enabled: ${FXCM_ENABLED:false}
+      symbols: ${FXCM_SYMBOLS:XAUUSD,EURUSD}
+      minScore: ${FXCM_MIN_SCORE:4}
+      url: ${FXCM_QUOTES_URL:}
+      token: ${FXCM_API_TOKEN:}
+      pollSeconds: ${FXCM_POLL_SECONDS:20}
   autoCluster:
     enabled: ${AUTO_CLUSTER_ENABLED:true}
     mode: ${AUTO_CLUSTER_MODE:ON_SIGNAL}
