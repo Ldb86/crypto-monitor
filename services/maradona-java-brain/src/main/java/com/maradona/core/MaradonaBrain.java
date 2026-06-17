@@ -76,10 +76,10 @@ public class MaradonaBrain {
         if (isMaster) {
             if (!targetValidation.valid()) {
                 rememberMaster(symbol, side, tv);
-                return new Decision("MASTER_WATCH_TARGET_ERROR_" + side,
+                return new Decision("WATCH_TARGET_ERROR_" + side,
                         "TW MASTER ricevuto, ma i TP sono incoerenti per la direzione. " + targetValidation.warning(),
                         confidence,
-                        "🟨 MARADONA MASTER WATCH - TP DA CORREGGERE " + side,
+                        "🟨 WATCH TECNICO - TP DA CORREGGERE " + side,
                         false);
             }
             if (!allowedCompression) {
@@ -98,7 +98,7 @@ public class MaradonaBrain {
                 return new Decision("ENTRY_WATCH_" + side,
                         "TW MASTER valido ma Bybit solo parziale: entrata manuale prudente / attendere retest",
                         confidence,
-                        "🟨 MARADONA MASTER WATCH " + side,
+                        "🟨 WATCH TECNICO " + side,
                         false);
             }
             return new Decision("ENTRY_BLOCKED_" + side,

@@ -9,6 +9,8 @@ import com.maradona.core.Decision;
 import com.maradona.core.MaradonaBrain;
 import com.maradona.core.SignalOverlapService;
 import com.maradona.core.TargetValidation;
+import com.maradona.core.TradeMemoryService;
+import com.maradona.core.SetupMemoryService;
 import com.maradona.liquidity.LiquidityVoteEngine;
 import com.maradona.model.ExchangeSnapshot;
 import com.maradona.model.LiquidityDecision;
@@ -33,12 +35,14 @@ public class TradingViewWebhookController {
     private final CoinglassManualService coinglass;
     private final AutoClusterService autoClusters;
     private final SignalOverlapService overlapService;
+    private final TradeMemoryService tradeMemory;
+    private final SetupMemoryService setupMemory;
     private final TelegramNotifier telegram;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public TradingViewWebhookController(MaradonaProperties props, MarketState marketState, MaradonaBrain brain,
                                         LiquidityVoteEngine liquidityVoteEngine, CoinglassManualService coinglass,
-                                        AutoClusterService autoClusters, SignalOverlapService overlapService, TelegramNotifier telegram) {
+                                        AutoClusterService autoClusters, SignalOverlapService overlapService, TradeMemoryService tradeMemory, SetupMemoryService setupMemory, TelegramNotifier telegram) {
         this.props = props;
         this.marketState = marketState;
         this.brain = brain;
@@ -46,6 +50,8 @@ public class TradingViewWebhookController {
         this.coinglass = coinglass;
         this.autoClusters = autoClusters;
         this.overlapService = overlapService;
+        this.tradeMemory = tradeMemory;
+        this.setupMemory = setupMemory;
         this.telegram = telegram;
     }
 
@@ -92,6 +98,7 @@ public class TradingViewWebhookController {
             AutoClusterService.OperationalMap opMap = autoClusters.prepareForSignal(signal, "WEBHOOK_" + signal.safeSignal());
             System.out.println("AUTO CLUSTER EVENT MAP: " + autoClusters.shortSummary(opMap));
 
+            setupMemory.rememberIfReady(signal);
             sendManualClusterHitReminders(signal, bybitSnapshot);
 
             Decision decision = brain.evaluate(signal, bybitSnapshot);
@@ -142,6 +149,8 @@ public class TradingViewWebhookController {
                 return;
             }
 
+            setupMemory.promoteIfConfirmedMaster(signal, liquidity);
+            tradeMemory.rememberIfConfirmedMaster(signal, liquidity, decision.action());
             telegram.send(formatTelegram(signal, bybitSnapshot, decision, liquidity));
             System.out.println("WEBHOOK ASYNC END: " + signal.symbol() + " " + signal.safeSignal());
         } catch (Exception e) {
@@ -183,11 +192,21 @@ public class TradingViewWebhookController {
         }
 
         if (sig.contains("MASTER")) {
-            if (microMaster) return liquidity != null && liquidity.confirmed();
-            if (forexSymbol) return liquidity != null && liquidity.confirmed() && decision.operative();
+            boolean confirmedLiquidity = liquidity != null && liquidity.confirmed();
+            boolean targetError = action.contains("TARGET_ERROR");
+
+            // REGOLA OPERATIVA 0.4.7J-FIX:
+            // READY / WATCH / NON CONFERMATO restano log-only.
+            // MARADONA MASTER e MASTER PELE MICRO GZ con liquidity 2/3 o 3/3 devono SEMPRE arrivare in Telegram.
+            // Il vecchio ENTRY_WATCH non deve più bloccare un MASTER già confermato dal motore multi-exchange.
+            if (targetError) return props.getNotifications().isNotifyMasterRejected();
+            if (confirmedLiquidity) return true;
+
+            if (microMaster) return false;
+            if (forexSymbol) return false;
             if (action.contains("ENTRY_WATCH") || action.contains("MASTER_WATCH")) return props.getNotifications().isNotifyMasterWatch();
             if (!decision.operative()) return props.getNotifications().isNotifyMasterRejected();
-            return liquidity != null && liquidity.confirmed();
+            return false;
         }
 
         return props.getNotifications().isNotifyOther();
@@ -301,9 +320,10 @@ public class TradingViewWebhookController {
         String side = s.safeSide().toUpperCase();
         String action = d.action() == null ? "" : d.action().toUpperCase();
         String signal = s.safeSignal().toUpperCase();
-        if (isMicroGz && signal.contains("MASTER")) return "🎯 MASTER PELE MICRO GZ " + side + " CONFERMATO";
+        if (isMicroGz && signal.contains("MASTER") && liquidity != null && liquidity.confirmed()) return "🎯 MASTER PELE MICRO GZ " + side + " CONFERMATO";
+        if (signal.contains("MASTER") && liquidity != null && liquidity.confirmed()) return "🚨 MARADONA MASTER " + side + " CONFERMATO";
         if (action.contains("ENTRY_VALIDATED")) return "✅ MARADONA ENTRY VALIDATA " + side;
-        if (action.contains("ENTRY_WATCH") || action.contains("MASTER_WATCH")) return "🟨 MARADONA MASTER WATCH " + side;
+        if (action.contains("ENTRY_WATCH") || action.contains("MASTER_WATCH")) return "🟨 WATCH TECNICO " + side;
         if (action.contains("BLOCK") || action.contains("NO_BYBIT") || action.contains("TARGET_ERROR")) return "⛔ MARADONA MASTER NON CONFERMATO " + side;
         if (action.contains("READY")) return "🟠 MARADONA READY " + side;
         if (action.contains("WARNING") || action.contains("PROTECT")) return "⚠️ MARADONA WARNING / PROTECT";
@@ -313,9 +333,10 @@ public class TradingViewWebhookController {
 
     private String friendlyDecision(String action, String side, boolean isMicroGz, LiquidityDecision liquidity) {
         if (isMicroGz && liquidity != null && liquidity.confirmed()) return "MASTER PELE MICRO GZ VALIDATO " + side + " " + liquidity.scoreLabel();
+        if (liquidity != null && liquidity.confirmed()) return "MARADONA MASTER VALIDATO " + side + " " + liquidity.scoreLabel();
         String a = action == null ? "" : action.toUpperCase();
         if (a.contains("ENTRY_VALIDATED")) return "ENTRY VALIDATA " + side;
-        if (a.contains("ENTRY_WATCH") || a.contains("MASTER_WATCH")) return "MASTER DA MONITORARE " + side;
+        if (a.contains("ENTRY_WATCH") || a.contains("MASTER_WATCH")) return "WATCH TECNICO / SOLO BRAIN " + side;
         if (a.contains("BLOCK") || a.contains("NO_BYBIT") || a.contains("TARGET_ERROR")) return "ENTRY BLOCCATA / NON CONFERMATA " + side;
         if (a.contains("READY")) return "READY " + side;
         if (a.contains("WARNING") || a.contains("PROTECT")) return "WARNING / PROTECT";
@@ -410,6 +431,9 @@ public class TradingViewWebhookController {
         if (isMicroGz && liquidity != null) {
             return "TradingView ha dato " + signal + ". Java Brain ha validato la micro Golden Zone con motore gratuito multi-exchange. " + liquidity.reason();
         }
+        if (signal.contains("MASTER") && liquidity != null && liquidity.confirmed()) {
+            return "TradingView ha dato " + signal + ". Java Brain ha confermato il MASTER con motore gratuito multi-exchange: " + liquidity.reason() + " Stato book: " + orderBookStatus + ".";
+        }
         if (action.contains("ENTRY_VALIDATED")) {
             return "TradingView ha dato " + signal + ". Java Brain conferma dopo controllo order book. " +
                     (side.contains("SHORT") ? "Pressione venditrice favorevole e flow coerente con lo short." : "Pressione compratrice favorevole e flow coerente con il long.");
@@ -428,10 +452,13 @@ public class TradingViewWebhookController {
         if (isMicroGz && liquidity != null && liquidity.confirmed()) {
             return (side.contains("SHORT") ? "Micro GZ short operativa." : "Micro GZ long operativa.") + noChaseText(s, side);
         }
+        if (s.safeSignal().toUpperCase().contains("MASTER") && liquidity != null && liquidity.confirmed()) {
+            return (side.contains("SHORT") ? "MARADONA MASTER short operativo." : "MARADONA MASTER long operativo.") + noChaseText(s, side);
+        }
         if (action.contains("ENTRY_VALIDATED")) {
             return (side.contains("SHORT") ? "Short valido." : "Long valido.") + noChaseText(s, side);
         }
-        if (action.contains("ENTRY_WATCH")) return "Segnale da monitorare. Attendere retest o conferma più pulita prima di entrare.";
+        if (action.contains("ENTRY_WATCH")) return "Watch tecnico solo Brain: non è un MASTER operativo da notificare se la liquidità non conferma.";
         if (action.contains("BLOCK")) return "Non entrare ora. Aspetta nuovo MASTER, retest migliore o conferma del Brain.";
         if (action.contains("READY")) return "Guardare grafico e dashboard. Non entrare finché non arriva MASTER operativo.";
         if (action.contains("WARNING") || action.contains("PROTECT")) return "Proteggi il trade o evita nuove entry contrarie finché il Brain non conferma.";
