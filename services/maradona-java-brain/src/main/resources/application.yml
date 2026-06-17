@@ -35,6 +35,14 @@ maradona:
     maxCandles: ${AUTO_CLUSTER_MAX_CANDLES:100}
     maxDistancePct: ${AUTO_CLUSTER_MAX_DISTANCE_PCT:2.5}
     mergeTolerancePct: ${AUTO_CLUSTER_MERGE_TOLERANCE_PCT:0.20}
+  setupMemory:
+    enabled: ${SETUP_MEMORY_ENABLED:true}
+    maxCandles: ${SETUP_MEMORY_MAX_CANDLES:100}
+    cleanPollMs: ${SETUP_MEMORY_CLEAN_POLL_MS:60000}
+
+  tradeMemory:
+    enabled: ${TRADE_MEMORY_ENABLED:true}
+    pollMs: ${TRADE_MEMORY_POLL_MS:10000}
   notifications:
     notifyReady: ${NOTIFY_READY:false}
     notifyPre: ${NOTIFY_PRE:false}
@@ -53,8 +61,8 @@ maradona:
     duplicateEntryDistancePct: ${DUPLICATE_ENTRY_DISTANCE_PCT:0.30}
     duplicateRangeOverlapPct: ${DUPLICATE_RANGE_OVERLAP_PCT:50}
   telegram:
-    botToken: ${TELEGRAM_BOT_TOKEN:}
-    chatId: ${TELEGRAM_CHAT_ID:}
+    botToken: ${TELEGRAM_BOT_TOKEN:${BOT_TOKENS:}}
+    chatId: ${TELEGRAM_CHAT_ID:${CHAT_IDS:}}
     telegramEnabled: ${TELEGRAM_ENABLED:true}
     commandPollingEnabled: ${TELEGRAM_COMMAND_POLLING_ENABLED:true}
   tv:
