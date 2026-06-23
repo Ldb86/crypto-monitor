@@ -7,7 +7,8 @@
  * Obiettivo:
  * - mantenere il BR Range Box a 20 candele che gia' funzionava;
  * - usare Range Box, rottura Trendline e liquidity come 3 pilastri indipendenti;
- * - notificare quando almeno 2 pilastri su 3 concordano nella stessa direzione;
+ * - notificare solo quando la liquidity conferma e almeno un pilastro tecnico (Range o TL) concorda;
+ * - impedire reinvii dello stesso setup quando la liquidity oscilla durante la stessa candela;
  * - nessuna dipendenza da TradingView / Pine Script.
  */
 
@@ -64,6 +65,12 @@ const CONFIG = {
   rangeSignalEnabled: boolEnv('ENABLE_RANGEBOX_SIGNAL', boolEnv('REQUIRE_RANGEBOX_BREAKOUT', true)),
   tlSignalEnabled: boolEnv('ENABLE_LUX_TL_SIGNAL', boolEnv('REQUIRE_LUX_TL_BREAK', true)),
   signalMinPillars: Math.max(2, Math.min(3, intEnv('SIGNAL_MIN_PILLARS', 2))),
+  // Gate Telegram: liquidity obbligatoria. Consente solo Range+Liquidity, TL+Liquidity o 3/3.
+  requireLiquidityForTelegram: boolEnv(
+    'REQUIRE_LIQUIDITY_FOR_TELEGRAM',
+    boolEnv('SEND_ONLY_LIQUIDITY_CONFIRMED', true)
+  ),
+  notify3Of3Upgrade: boolEnv('NOTIFY_3OF3_UPGRADE', true),
   tlBreakMaxAgeCandles: intEnv('TL_BREAK_MAX_AGE_CANDLES', 3),
 
   luxLength: intEnv('LUX_LENGTH', 14),
@@ -112,7 +119,7 @@ const CONFIG = {
 };
 
 if (Object.prototype.hasOwnProperty.call(process.env, 'SEND_ONLY_LIQUIDITY_CONFIRMED')) {
-  console.warn('[CONFIG] SEND_ONLY_LIQUIDITY_CONFIRMED è obsoleta: in questa versione vale la maggioranza 2 su 3. Rimuoverla dal .env.');
+  console.warn('[CONFIG] SEND_ONLY_LIQUIDITY_CONFIRMED resta supportata come alias di REQUIRE_LIQUIDITY_FOR_TELEGRAM.');
 }
 
 const lastSignals = {};
@@ -138,6 +145,9 @@ for (const c of coins) {
       lastPillarSignature: null,
       lastMajorityScore: 0,
       lastBreakMemorySignature: null,
+      // Memoria anti-spam: conserva i setup già notificati per questo simbolo/TF.
+      // La chiave non include lo stato oscillante della liquidity.
+      notifiedSetups: {},
       macd: null
     };
   }
@@ -145,7 +155,7 @@ for (const c of coins) {
 
 // ───────────────────────── SERVER ─────────────────────────
 app.get('/', (req, res) => {
-  res.type('text').send('✅ BR + TL + Liquidity: maggioranza operativa 2 su 3 attiva');
+  res.type('text').send('✅ BR/TL + Liquidity: liquidity obbligatoria e anti-spam setup attivi');
 });
 
 app.get('/status', (req, res) => {
@@ -538,6 +548,50 @@ async function analyze(symbol, interval, sharedSnapshots, sharedClusters) {
   const direction = majority.direction;
   const liquidity = direction === 'long' ? liquidityState.long : liquidityState.short;
 
+  // Regola definitiva Telegram:
+  // ✅ Range + Liquidity
+  // ✅ TL + Liquidity
+  // ✅ Range + TL + Liquidity
+  // ❌ Range + TL senza liquidity (o con liquidity contraria)
+  if (CONFIG.requireLiquidityForTelegram && majority.liquidityStatus !== 'same') {
+    if (CONFIG.debugRejected) {
+      console.log(`${now()} ⛔ ${symbol}[${interval}] ${direction.toUpperCase()} tecnico ${majority.score}/3 NON INVIATO: liquidity obbligatoria non conferma (${liquidityState.direction || 'neutra'})`);
+    }
+    return {
+      skipped: true,
+      reason: 'LIQUIDITY_REQUIRED_FOR_TELEGRAM',
+      majority,
+      rangeBreakout,
+      rangeEvent: recentRangeEvent,
+      tl: tlConfirm,
+      liquidityState,
+      breakMemory
+    };
+  }
+
+  const setupKey = buildNotificationSetupKey({
+    symbol,
+    interval,
+    direction,
+    majority,
+    rangeEvent: recentRangeEvent,
+    tlEvent: tlConfirm
+  });
+  const previousSetup = state.notifiedSetups?.[setupKey] || null;
+  const isAllowedUpgrade = Boolean(
+    previousSetup &&
+    CONFIG.notify3Of3Upgrade &&
+    previousSetup.maxScore < 3 &&
+    majority.score === 3
+  );
+
+  if (previousSetup && !isAllowedUpgrade) {
+    if (CONFIG.debugRejected) {
+      console.log(`${now()} 🔕 ${symbol}[${interval}] ${direction.toUpperCase()} setup già notificato: nessun reinvio (${majority.score}/3)`);
+    }
+    return { skipped: true, reason: 'SETUP_ALREADY_NOTIFIED', setupKey, majority };
+  }
+
   const signalKey = [
     symbol,
     interval,
@@ -563,6 +617,7 @@ async function analyze(symbol, interval, sharedSnapshots, sharedClusters) {
     return { skipped: true, reason: 'RANGE_STATE_ALREADY_NOTIFIED' };
   }
 
+  rememberNotifiedSetup(state, setupKey, majority.score);
   state.lastAlertKey = signalKey;
   state.lastDirection = direction;
   state.lastPillarSignature = majority.signature;
@@ -648,6 +703,34 @@ function resolveLiquidityDirection(snapshots) {
     short,
     ambiguous: long.confirmed && short.confirmed && !direction
   };
+}
+
+function buildNotificationSetupKey({ symbol, interval, direction, majority, rangeEvent, tlEvent }) {
+  const rangeId = majority?.rangeStatus === 'same'
+    ? String(rangeEvent?.index ?? rangeEvent?.barTime ?? 'range-current')
+    : '-';
+  const tlId = majority?.tlStatus === 'same'
+    ? String(tlEvent?.index ?? tlEvent?.barTime ?? 'tl-current')
+    : '-';
+  return `${symbol}|${interval}|${direction}|R:${rangeId}|T:${tlId}`;
+}
+
+function rememberNotifiedSetup(state, setupKey, score) {
+  if (!state.notifiedSetups || typeof state.notifiedSetups !== 'object') state.notifiedSetups = {};
+  const previous = state.notifiedSetups[setupKey];
+  state.notifiedSetups[setupKey] = {
+    maxScore: Math.max(Number(previous?.maxScore) || 0, Number(score) || 0),
+    notifiedAt: Date.now()
+  };
+
+  // Evita crescita indefinita della memoria durante settimane di esecuzione.
+  const entries = Object.entries(state.notifiedSetups);
+  if (entries.length > 100) {
+    entries
+      .sort((a, b) => Number(a[1]?.notifiedAt || 0) - Number(b[1]?.notifiedAt || 0))
+      .slice(0, entries.length - 100)
+      .forEach(([key]) => delete state.notifiedSetups[key]);
+  }
 }
 
 function relationToDirection(actualDirection, targetDirection) {
@@ -2126,6 +2209,8 @@ function publicConfig() {
     rangeSignalEnabled: CONFIG.rangeSignalEnabled,
     tlSignalEnabled: CONFIG.tlSignalEnabled,
     signalMinPillars: CONFIG.signalMinPillars,
+    requireLiquidityForTelegram: CONFIG.requireLiquidityForTelegram,
+    notify3Of3Upgrade: CONFIG.notify3Of3Upgrade,
     tlBreakMaxAgeCandles: CONFIG.tlBreakMaxAgeCandles,
     rangeBreakMaxAgeCandles: CONFIG.rangeBreakMaxAgeCandles,
     rangeBreakMemoryBars: CONFIG.rangeBreakMemoryBars,
