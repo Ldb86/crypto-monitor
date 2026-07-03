@@ -8,6 +8,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class MaradonaApplication {
     public static void main(String[] args) {
+        System.out.println("MARADONA Java Brain v0.4.7J-5-final-liquidity-gate-real-tpsl");
         SpringApplication.run(MaradonaApplication.class, args);
     }
 }

@@ -43,6 +43,12 @@ maradona:
   tradeMemory:
     enabled: ${TRADE_MEMORY_ENABLED:true}
     pollMs: ${TRADE_MEMORY_POLL_MS:10000}
+    activationDelayMs: ${TRADE_MEMORY_ACTIVATION_DELAY_MS:30000}
+    maxPriceAgeSeconds: ${TRADE_MEMORY_MAX_PRICE_AGE_SECONDS:15}
+    minPriceSources: ${TRADE_MEMORY_MIN_PRICE_SOURCES:2}
+    maxEntryDistancePct: ${TRADE_MEMORY_MAX_ENTRY_DISTANCE_PCT:1.50}
+    activateOnlyInEntryZone: ${TRADE_MEMORY_ACTIVATE_ONLY_IN_ENTRY_ZONE:true}
+    entryZoneTolerancePct: ${TRADE_MEMORY_ENTRY_ZONE_TOLERANCE_PCT:0.15}
   notifications:
     notifyReady: ${NOTIFY_READY:false}
     notifyPre: ${NOTIFY_PRE:false}

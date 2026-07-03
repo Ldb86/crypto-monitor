@@ -101,8 +101,16 @@ public class TradingViewWebhookController {
             setupMemory.rememberIfReady(signal);
             sendManualClusterHitReminders(signal, bybitSnapshot);
 
-            Decision decision = brain.evaluate(signal, bybitSnapshot);
+            Decision rawDecision = brain.evaluate(signal, bybitSnapshot);
             LiquidityDecision liquidity = liquidityVoteEngine.evaluate(signal, exchangeSnapshots);
+            Decision decision = enforceFinalLiquidityGate(signal, rawDecision, liquidity);
+            if (!decision.action().equals(rawDecision.action())) {
+                System.out.println("FINAL LIQUIDITY GATE OVERRIDE: rawAction=" + rawDecision.action()
+                        + " finalAction=" + decision.action()
+                        + " liquidity=" + liquidity.status()
+                        + " confirms=" + liquidity.confirms() + "/" + liquidity.available()
+                        + " contrary=" + liquidity.contrary());
+            }
             System.out.println("Liquidity: " + liquidity.status() + " " + liquidity.scoreLabel());
 
             boolean microMaster = isMicroMaster(signal);
@@ -177,6 +185,32 @@ public class TradingViewWebhookController {
         }
     }
 
+    private Decision enforceFinalLiquidityGate(TradingViewSignal signal, Decision raw, LiquidityDecision liquidity) {
+        if (signal == null || raw == null) return raw;
+        String sig = signal.safeSignal().toUpperCase();
+        String side = signal.safeSide().toUpperCase();
+        if (!sig.contains("MASTER")) return raw;
+        if (liquidity == null) {
+            return new Decision("ENTRY_BLOCKED_LIQUIDITY_NO_DATA_" + side,
+                    "MASTER bloccato: liquidity engine non disponibile. Bybit/Binance/OKX non hanno dato conferma finale.",
+                    Math.max(0, Math.min(100, raw.confidence())),
+                    "⛔ MARADONA ENTRY BLOCCATA " + side,
+                    false);
+        }
+        if (!liquidity.confirmed()) {
+            int confidence = Math.max(0, Math.min(100, raw.confidence() - 25 - (liquidity.contrary() * 8)));
+            return new Decision("ENTRY_BLOCKED_LIQUIDITY_" + liquidity.status() + "_" + side,
+                    "MASTER bloccato dal gate finale multi-exchange. " + liquidity.reason()
+                            + " Conferme=" + liquidity.confirms() + "/" + liquidity.available()
+                            + ", contrarie=" + liquidity.contrary()
+                            + ". Bybit da solo non basta.",
+                    confidence,
+                    "⛔ MARADONA ENTRY BLOCCATA " + side,
+                    false);
+        }
+        return raw;
+    }
+
     private boolean shouldSendOperationalTelegram(TradingViewSignal signal, Decision decision, LiquidityDecision liquidity, boolean microMaster, boolean forexSymbol) {
         String sig = signal.safeSignal().toUpperCase();
         String action = decision.action() == null ? "" : decision.action().toUpperCase();
@@ -195,18 +229,17 @@ public class TradingViewWebhookController {
             boolean confirmedLiquidity = liquidity != null && liquidity.confirmed();
             boolean targetError = action.contains("TARGET_ERROR");
 
-            // REGOLA OPERATIVA 0.4.7J-FIX:
-            // READY / WATCH / NON CONFERMATO restano log-only.
-            // MARADONA MASTER e MASTER PELE MICRO GZ con liquidity 2/3 o 3/3 devono SEMPRE arrivare in Telegram.
-            // Il vecchio ENTRY_WATCH non deve più bloccare un MASTER già confermato dal motore multi-exchange.
+            // REGOLA OPERATIVA 0.4.7J-5:
+            // Il gate finale è SEMPRE liquidity 2/3 o 3/3.
+            // Bybit può confermare da solo, ma non può trasformare un segnale in operativo se Binance/OKX non confermano.
+            // MASTER MARADONA e MASTER PELE MICRO GZ confermati arrivano; tutti i non confermati restano log-only salvo debug esplicito.
             if (targetError) return props.getNotifications().isNotifyMasterRejected();
             if (confirmedLiquidity) return true;
 
-            if (microMaster) return false;
-            if (forexSymbol) return false;
+            if (microMaster) return props.getMultiExchange().isNotifyRejectedMicroGz();
+            if (forexSymbol) return props.getForex().isNotifyRejected();
             if (action.contains("ENTRY_WATCH") || action.contains("MASTER_WATCH")) return props.getNotifications().isNotifyMasterWatch();
-            if (!decision.operative()) return props.getNotifications().isNotifyMasterRejected();
-            return false;
+            return props.getNotifications().isNotifyMasterRejected();
         }
 
         return props.getNotifications().isNotifyOther();
@@ -281,6 +314,7 @@ public class TradingViewWebhookController {
 
         b.append("ORDER BOOK BYBIT: ").append(orderBookStatus).append("\n");
         b.append("LIQUIDITY ENGINE: ").append(liquidity == null ? "NON DISPONIBILE" : liquidity.friendlyLine()).append("\n");
+        b.append(finalGateLine(s, liquidity));
         b.append(formatExchangeVotes(liquidity));
         b.append("CLUSTER AUTO 0.4.7 EVENT: ").append(autoClusterFriendly(autoCheck)).append("\n");
         if (autoCheck != null && autoCheck.map() != null) {
@@ -320,6 +354,7 @@ public class TradingViewWebhookController {
         String side = s.safeSide().toUpperCase();
         String action = d.action() == null ? "" : d.action().toUpperCase();
         String signal = s.safeSignal().toUpperCase();
+        if (signal.contains("MASTER") && liquidity != null && !liquidity.confirmed()) return "⛔ MARADONA ENTRY BLOCCATA " + side;
         if (isMicroGz && signal.contains("MASTER") && liquidity != null && liquidity.confirmed()) return "🎯 MASTER PELE MICRO GZ " + side + " CONFERMATO";
         if (signal.contains("MASTER") && liquidity != null && liquidity.confirmed()) return "🚨 MARADONA MASTER " + side + " CONFERMATO";
         if (action.contains("ENTRY_VALIDATED")) return "✅ MARADONA ENTRY VALIDATA " + side;
@@ -332,6 +367,7 @@ public class TradingViewWebhookController {
     }
 
     private String friendlyDecision(String action, String side, boolean isMicroGz, LiquidityDecision liquidity) {
+        if (liquidity != null && !liquidity.confirmed()) return "ENTRY BLOCCATA / LIQUIDITY NON CONFERMATA " + side + " " + liquidity.scoreLabel();
         if (isMicroGz && liquidity != null && liquidity.confirmed()) return "MASTER PELE MICRO GZ VALIDATO " + side + " " + liquidity.scoreLabel();
         if (liquidity != null && liquidity.confirmed()) return "MARADONA MASTER VALIDATO " + side + " " + liquidity.scoreLabel();
         String a = action == null ? "" : action.toUpperCase();
@@ -355,6 +391,7 @@ public class TradingViewWebhookController {
         String action = d.action() == null ? "" : d.action().toUpperCase();
         boolean isLong = side != null && side.toUpperCase().contains("LONG");
         boolean isShort = side != null && side.toUpperCase().contains("SHORT");
+        if (action.contains("ENTRY_BLOCKED_LIQUIDITY")) return isLong ? "BYBIT PARZIALE / FINALE 2-OF-3 BLOCCA LONG" : "BYBIT PARZIALE / FINALE 2-OF-3 BLOCCA SHORT";
         if (action.contains("ENTRY_VALIDATED")) return isLong ? "CONFERMA LONG" : "CONFERMA SHORT";
         if (action.contains("ENTRY_WATCH")) return isLong ? "CONFERMA LONG PARZIALE" : "CONFERMA SHORT PARZIALE";
         if (action.contains("BLOCK")) return isLong ? "NON CONFERMA LONG" : "NON CONFERMA SHORT";
@@ -380,6 +417,16 @@ public class TradingViewWebhookController {
     }
 
 
+
+    private String finalGateLine(TradingViewSignal s, LiquidityDecision liquidity) {
+        if (s == null || !s.safeSignal().toUpperCase().contains("MASTER")) return "";
+        if (liquidity == null) return "FINAL GATE: BLOCCATO - liquidity engine non disponibile\n";
+        if (liquidity.confirmed()) {
+            return "FINAL GATE: OPERATIVO - conferme " + liquidity.confirms() + "/" + liquidity.available() + "\n";
+        }
+        return "FINAL GATE: BLOCCATO - conferme " + liquidity.confirms() + "/" + liquidity.available()
+                + ", contrarie " + liquidity.contrary() + ". Bybit solo non basta.\n";
+    }
 
     private String formatExchangeVotes(LiquidityDecision liquidity) {
         if (liquidity == null || liquidity.votes() == null || liquidity.votes().isEmpty()) {
@@ -428,7 +475,13 @@ public class TradingViewWebhookController {
         String signal = s.safeSignal().toUpperCase();
         String action = d.action() == null ? "" : d.action().toUpperCase();
         if (m == null) return "TradingView ha inviato il segnale, ma Java Brain non ha ancora uno snapshot Bybit valido. Messaggio solo informativo.";
-        if (isMicroGz && liquidity != null) {
+        if (signal.contains("MASTER") && liquidity != null && !liquidity.confirmed()) {
+            return "TradingView ha dato " + signal + ", ma il gate finale multi-exchange NON conferma. "
+                    + liquidity.reason() + " Conferme=" + liquidity.confirms() + "/" + liquidity.available()
+                    + ", contrarie=" + liquidity.contrary()
+                    + ". Bybit può essere favorevole, ma Bybit da solo non basta: servono almeno 2 exchange coerenti.";
+        }
+        if (isMicroGz && liquidity != null && liquidity.confirmed()) {
             return "TradingView ha dato " + signal + ". Java Brain ha validato la micro Golden Zone con motore gratuito multi-exchange. " + liquidity.reason();
         }
         if (signal.contains("MASTER") && liquidity != null && liquidity.confirmed()) {
@@ -449,6 +502,9 @@ public class TradingViewWebhookController {
     private String friendlyAction(TradingViewSignal s, Decision d, double brainEntry, LiquidityDecision liquidity, boolean isMicroGz) {
         String action = d.action() == null ? "" : d.action().toUpperCase();
         String side = s.safeSide().toUpperCase();
+        if (s.safeSignal().toUpperCase().contains("MASTER") && liquidity != null && !liquidity.confirmed()) {
+            return "NON ENTRARE. Segnale bloccato dal gate finale: servono almeno 2/3 exchange confermati. Bybit da solo non è sufficiente.";
+        }
         if (isMicroGz && liquidity != null && liquidity.confirmed()) {
             return (side.contains("SHORT") ? "Micro GZ short operativa." : "Micro GZ long operativa.") + noChaseText(s, side);
         }
