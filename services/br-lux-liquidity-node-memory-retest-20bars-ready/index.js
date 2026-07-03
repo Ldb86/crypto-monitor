@@ -71,6 +71,11 @@ const CONFIG = {
     boolEnv('SEND_ONLY_LIQUIDITY_CONFIRMED', true)
   ),
   notify3Of3Upgrade: boolEnv('NOTIFY_3OF3_UPGRADE', true),
+  // Anti-spam notifiche: blocca solo lo stesso setup ancora vivo.
+  // Dopo N candele del TF la memoria scade, quindi un vecchio segnale non blocca giorni dopo.
+  notificationMemoryBars: intEnv('NOTIFICATION_MEMORY_BARS', 20),
+  // 0 = usa solo le candele; se >0 aggiunge anche una scadenza in minuti.
+  notificationMemoryTtlMinutes: intEnv('NOTIFICATION_MEMORY_TTL_MINUTES', 0),
   tlBreakMaxAgeCandles: intEnv('TL_BREAK_MAX_AGE_CANDLES', 3),
 
   luxLength: intEnv('LUX_LENGTH', 14),
@@ -569,14 +574,22 @@ async function analyze(symbol, interval, sharedSnapshots, sharedClusters) {
     };
   }
 
-  const setupKey = buildNotificationSetupKey({
+  expireStaleNotifiedSetups(state, {
+    interval,
+    lastCandleTime: last.time
+  });
+
+  const setupIdentity = buildNotificationSetupKey({
     symbol,
     interval,
     direction,
     majority,
     rangeEvent: recentRangeEvent,
-    tlEvent: tlConfirm
+    tlEvent: tlConfirm,
+    breakMemory,
+    lastCandle: last
   });
+  const setupKey = setupIdentity.key;
   const previousSetup = state.notifiedSetups?.[setupKey] || null;
   const isAllowedUpgrade = Boolean(
     previousSetup &&
@@ -587,7 +600,8 @@ async function analyze(symbol, interval, sharedSnapshots, sharedClusters) {
 
   if (previousSetup && !isAllowedUpgrade) {
     if (CONFIG.debugRejected) {
-      console.log(`${now()} 🔕 ${symbol}[${interval}] ${direction.toUpperCase()} setup già notificato: nessun reinvio (${majority.score}/3)`);
+      const ageInfo = describeNotificationMemoryAge(previousSetup, interval, last.time);
+      console.log(`${now()} 🔕 ${symbol}[${interval}] ${direction.toUpperCase()} setup già notificato: nessun reinvio (${majority.score}/3${ageInfo ? ' | ' + ageInfo : ''})`);
     }
     return { skipped: true, reason: 'SETUP_ALREADY_NOTIFIED', setupKey, majority };
   }
@@ -617,7 +631,7 @@ async function analyze(symbol, interval, sharedSnapshots, sharedClusters) {
     return { skipped: true, reason: 'RANGE_STATE_ALREADY_NOTIFIED' };
   }
 
-  rememberNotifiedSetup(state, setupKey, majority.score);
+  rememberNotifiedSetup(state, setupKey, majority.score, setupIdentity);
   state.lastAlertKey = signalKey;
   state.lastDirection = direction;
   state.lastPillarSignature = majority.signature;
@@ -705,29 +719,118 @@ function resolveLiquidityDirection(snapshots) {
   };
 }
 
-function buildNotificationSetupKey({ symbol, interval, direction, majority, rangeEvent, tlEvent }) {
-  const rangeId = majority?.rangeStatus === 'same'
-    ? String(rangeEvent?.index ?? rangeEvent?.barTime ?? 'range-current')
-    : '-';
-  const tlId = majority?.tlStatus === 'same'
-    ? String(tlEvent?.index ?? tlEvent?.barTime ?? 'tl-current')
-    : '-';
-  return `${symbol}|${interval}|${direction}|R:${rangeId}|T:${tlId}`;
+function buildNotificationSetupKey({ symbol, interval, direction, majority, rangeEvent, tlEvent, breakMemory, lastCandle }) {
+  const rangePart = majority?.rangeStatus === 'same'
+    ? buildSetupKeyPart('R', direction, rangeEvent, breakMemory?.range?.[direction], lastCandle)
+    : { text: 'R:-', sourceTime: null, sourceIndex: null };
+
+  const tlPart = majority?.tlStatus === 'same'
+    ? buildSetupKeyPart('T', direction, tlEvent, breakMemory?.tl?.[direction], lastCandle)
+    : { text: 'T:-', sourceTime: null, sourceIndex: null };
+
+  const sourceTimes = [rangePart.sourceTime, tlPart.sourceTime].filter(Number.isFinite);
+  const sourceIndexes = [rangePart.sourceIndex, tlPart.sourceIndex].filter(Number.isFinite);
+  const sourceMaxTime = sourceTimes.length ? Math.max(...sourceTimes) : Number(lastCandle?.time) || Date.now();
+  const sourceMaxIndex = sourceIndexes.length ? Math.max(...sourceIndexes) : Number(lastCandle?.index) || null;
+
+  return {
+    key: `${symbol}|${interval}|${direction}|${rangePart.text}|${tlPart.text}`,
+    sourceMaxTime,
+    sourceMaxIndex,
+    createdAt: Date.now()
+  };
 }
 
-function rememberNotifiedSetup(state, setupKey, score) {
+function buildSetupKeyPart(prefix, direction, freshEvent, memoryInfo, lastCandle) {
+  // Priorità alla rottura fresca. Se il pilastro arriva dalla memoria/retest,
+  // usa eventTime/eventLevel della rottura originale. Mai usare una chiave generica
+  // tipo "range-current", perché dopo giorni bloccherebbe nuovi setup veri.
+  const source = freshEvent || (
+    memoryInfo?.valid || memoryInfo?.state === 'retest_confirmed'
+      ? {
+        index: memoryInfo.eventIndex,
+        barTime: memoryInfo.eventTime,
+        level: memoryInfo.eventLevel,
+        price: memoryInfo.eventClose,
+        type: memoryInfo.eventType
+      }
+      : null
+  );
+
+  const index = Number(source?.index ?? source?.eventIndex ?? lastCandle?.index);
+  const time = Number(source?.barTime ?? source?.eventTime ?? lastCandle?.time ?? Date.now());
+  const level = Number(source?.level ?? source?.breakLevel ?? source?.eventLevel);
+  const levelId = setupNumberId(level);
+  const timeId = Number.isFinite(time) ? String(Math.trunc(time)) : 'noTime';
+  const indexId = Number.isFinite(index) ? String(Math.trunc(index)) : 'noIdx';
+
+  return {
+    text: `${prefix}:${direction}:${timeId}:${indexId}:${levelId}`,
+    sourceTime: Number.isFinite(time) ? time : null,
+    sourceIndex: Number.isFinite(index) ? index : null
+  };
+}
+
+function setupNumberId(value) {
+  if (!Number.isFinite(value)) return 'noLevel';
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toFixed(2);
+  if (abs >= 10) return value.toFixed(4);
+  return value.toFixed(8);
+}
+
+function expireStaleNotifiedSetups(state, { interval, lastCandleTime }) {
+  if (!state.notifiedSetups || typeof state.notifiedSetups !== 'object') return;
+  const intervalMs = intervalToMs(interval);
+  const nowMs = Date.now();
+  const ttlMs = CONFIG.notificationMemoryTtlMinutes > 0
+    ? CONFIG.notificationMemoryTtlMinutes * 60_000
+    : 0;
+  const lastTime = Number(lastCandleTime) || nowMs;
+
+  for (const [key, meta] of Object.entries(state.notifiedSetups)) {
+    let expired = false;
+    const sourceTime = Number(meta?.sourceMaxTime);
+    if (intervalMs && Number.isFinite(sourceTime)) {
+      const ageBars = Math.floor((lastTime - sourceTime) / intervalMs);
+      if (ageBars > CONFIG.notificationMemoryBars) expired = true;
+    }
+    if (!expired && ttlMs > 0) {
+      const notifiedAt = Number(meta?.notifiedAt || meta?.updatedAt || 0);
+      if (notifiedAt > 0 && nowMs - notifiedAt > ttlMs) expired = true;
+    }
+    // Vecchie entry create dalla patch precedente senza sourceMaxTime:
+    // non devono bloccare segnali per giorni dopo aggiornamento codice.
+    if (!expired && !Number.isFinite(sourceTime)) expired = true;
+    if (expired) delete state.notifiedSetups[key];
+  }
+}
+
+function describeNotificationMemoryAge(meta, interval, lastCandleTime) {
+  const intervalMs = intervalToMs(interval);
+  const sourceTime = Number(meta?.sourceMaxTime);
+  const lastTime = Number(lastCandleTime);
+  if (!intervalMs || !Number.isFinite(sourceTime) || !Number.isFinite(lastTime)) return '';
+  const ageBars = Math.max(0, Math.floor((lastTime - sourceTime) / intervalMs));
+  return `memoria ${ageBars}/${CONFIG.notificationMemoryBars} candele`;
+}
+
+function rememberNotifiedSetup(state, setupKey, score, setupIdentity = {}) {
   if (!state.notifiedSetups || typeof state.notifiedSetups !== 'object') state.notifiedSetups = {};
   const previous = state.notifiedSetups[setupKey];
   state.notifiedSetups[setupKey] = {
     maxScore: Math.max(Number(previous?.maxScore) || 0, Number(score) || 0),
-    notifiedAt: Date.now()
+    notifiedAt: Number(previous?.notifiedAt) || Date.now(),
+    updatedAt: Date.now(),
+    sourceMaxTime: setupIdentity.sourceMaxTime || null,
+    sourceMaxIndex: setupIdentity.sourceMaxIndex ?? null
   };
 
   // Evita crescita indefinita della memoria durante settimane di esecuzione.
   const entries = Object.entries(state.notifiedSetups);
   if (entries.length > 100) {
     entries
-      .sort((a, b) => Number(a[1]?.notifiedAt || 0) - Number(b[1]?.notifiedAt || 0))
+      .sort((a, b) => Number(a[1]?.updatedAt || a[1]?.notifiedAt || 0) - Number(b[1]?.updatedAt || b[1]?.notifiedAt || 0))
       .slice(0, entries.length - 100)
       .forEach(([key]) => delete state.notifiedSetups[key]);
   }
@@ -2211,6 +2314,8 @@ function publicConfig() {
     signalMinPillars: CONFIG.signalMinPillars,
     requireLiquidityForTelegram: CONFIG.requireLiquidityForTelegram,
     notify3Of3Upgrade: CONFIG.notify3Of3Upgrade,
+    notificationMemoryBars: CONFIG.notificationMemoryBars,
+    notificationMemoryTtlMinutes: CONFIG.notificationMemoryTtlMinutes,
     tlBreakMaxAgeCandles: CONFIG.tlBreakMaxAgeCandles,
     rangeBreakMaxAgeCandles: CONFIG.rangeBreakMaxAgeCandles,
     rangeBreakMemoryBars: CONFIG.rangeBreakMemoryBars,
