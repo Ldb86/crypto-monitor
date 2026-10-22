@@ -28,9 +28,9 @@ const coinEmojis = {
   AVAXUSDT:'🔥'
 };
 
-const intervals = ['5m','1h', '2h', '4h', '6h', '12h', '1d', '1w'];
+const intervals = ['1h', '2h', '4h', '6h', '12h', '1d', '1w'];
 const intervalMap = {
-  '5m': '5', '1h': '60', '2h': '120',
+  '1h': '60', '2h': '120',
   '4h': '240', '6h': '360', '12h': '720', '1d': 'D', '1w': 'W'
 };
 
